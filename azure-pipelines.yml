@@ -1,10 +1,10 @@
 # Learn more: https://aka.ms/yaml
 
-trigger:
-  pr:
-    - master
-    - stable
+pr:
   branches:
+    include:
+      - master
+      - stable
     exclude:
       - refs/tags/v*
 
