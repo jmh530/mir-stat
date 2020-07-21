@@ -1,12 +1,17 @@
 # Learn more: https://aka.ms/yaml
 
-pr:
+trigger:
   branches:
     include:
       - master
       - stable
     exclude:
       - refs/tags/v*
+pr:
+  branches:
+    include:
+      - master
+      - stable
 
 jobs:
   - job: Windows
@@ -25,6 +30,5 @@ jobs:
         displayName: 'Run a one-line script'
 
       - script: |
-          @echo on
           echo dummy build script - dont remove me
         displayName: build_script
