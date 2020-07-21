@@ -1,15 +1,17 @@
 # Learn more: https://aka.ms/yaml
 
+trigger:
+  pr:
+    - master
+    - stable
+  branches:
+    exclude:
+      - refs/tags/v*
+
 jobs:
   - job: Windows
     timeoutInMinutes: 120
-    trigger:
-      pr:
-        - master
-        - stable
-      branches:
-        exclude:
-          - refs/tags/{tagname}
+
     pool:
       vmImage: 'windows-latest'
     strategy:
