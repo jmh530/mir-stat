@@ -1,19 +1,28 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# Learn more: https://aka.ms/yaml
 
-trigger:
-- master
+jobs:
+  - job: Windows
+    timeoutInMinutes: 120
+    trigger:
+      pr:
+        - master
+        - stable
+      branches:
+        exclude:
+          - refs/tags/{tagname}
+    pool:
+      vmImage: 'windows-latest'
+    strategy:
+      matrix:
+        x64:
+          DC: ldc
+          DVersion: '1.21.0'
+          arch: x64
+    steps:
+      - script: echo Hello, world!
+        displayName: 'Run a one-line script'
 
-pool:
-  vmImage: 'windows-latest'
-
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+      - script: |
+          @echo on
+          echo dummy build script - dont remove me
+        displayName: build_script
