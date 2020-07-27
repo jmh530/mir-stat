@@ -69,7 +69,7 @@ jobs:
                 }
                 SetUpDCompiler
                 echo "downloading dub ...";
-                Command Invoke-WebRequest https://code.dlang.org/files/dub-1.9.0-windows-x86.zip -OutFile dub.zip
+                Command Invoke-WebRequest https://github.com/dlang/dub/releases/download/v1.22.0/dub-v1.22.0-windows-x86_64.zip -OutFile dub.zip
                 echo "finished dub.";
                 7z x dub.zip -odub > nul
                 set PATH=%CD%\%binpath%;%CD%\dub;%PATH%
