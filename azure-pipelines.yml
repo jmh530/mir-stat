@@ -67,17 +67,12 @@ jobs:
                       popd;
                     }
                 }
-        displayName: 'Prepare SetUpDCompiler'
-      - task: PowerShell@2
-        inputs:
-            targetType: 'inline'
-            script: |
                 SetUpDCompiler
                 Command Invoke-WebRequest https://code.dlang.org/files/dub-1.9.0-windows-x86.zip -OutFile dub.zip
                 7z x dub.zip -odub > nul
                 set PATH=%CD%\%binpath%;%CD%\dub;%PATH%
                 dub --version
-        displayName: 'Run SetUpDCompiler and install dub'
+        displayName: 'Prepare and Run SetUpDCompiler, also set up dub'
       - script: |
           echo dummy build script - dont remove me
         displayName: build_script
