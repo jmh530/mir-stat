@@ -35,23 +35,23 @@ jobs:
                 function SetUpDCompiler
                 {
                     if($env:DC -eq "dmd"){
+                      echo "downloading dmd ...";
                       if($env:arch -eq "x86"){
                         $env:DConf = "m32";
                       }
                       elseif($env:arch -eq "x64"){
                         $env:DConf = "m64";
                       }
-                      echo "downloading ...";
                       $env:toolchain = "msvc";
                       $version = $env:DVersion;
                       Invoke-WebRequest "http://downloads.dlang.org/releases/2.x/$($version)/dmd.$($version).windows.7z" -OutFile "c:\dmd.7z";
-                      echo "finished.";
+                      echo "finished dmd.";
                       pushd c:\\;
                       7z x dmd.7z > $null;
                       popd;
                     }
                     elseif($env:DC -eq "ldc"){
-                      echo "downloading ...";
+                      echo "downloading ldc ...";
                       if($env:arch -eq "x86"){
                         $env:DConf = "m32";
                       }
@@ -61,14 +61,16 @@ jobs:
                       $env:toolchain = "msvc";
                       $version = $env:DVersion;
                       Invoke-WebRequest "https://github.com/ldc-developers/ldc/releases/download/v$($version)/ldc2-$($version)-windows-x64.7z" -OutFile "c:\ldc.7z";
-                      echo "finished.";
+                      echo "finished ldc.";
                       pushd c:\\;
                       7z x ldc.7z > $null;
                       popd;
                     }
                 }
                 SetUpDCompiler
+                echo "downloading dub ...";
                 Command Invoke-WebRequest https://code.dlang.org/files/dub-1.9.0-windows-x86.zip -OutFile dub.zip
+                echo "finished dub.";
                 7z x dub.zip -odub > nul
                 set PATH=%CD%\%binpath%;%CD%\dub;%PATH%
                 dub --version
