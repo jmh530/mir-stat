@@ -9,12 +9,12 @@ dependency "mir-algorithm" version=">=3.9.60"
 
 buildType "unittest" {
     buildOptions "unittests" "debugMode" "debugInfo"
-    versions "mir_stat_test" "mir_stat_test_bultincomplex"
+    versions "mir_stat_test_hist" "mir_stat_test_bultincomplex"
     dflags "-lowmem"
 }
 buildType "unittest-cov" {
     buildOptions "unittests" "coverage" "debugMode" "debugInfo"
-    versions "mir_stat_test" "mir_stat_test_bultincomplex"
+    versions "mir_stat_test_hist" "mir_stat_test_bultincomplex"
     dflags "-lowmem"
 }
 buildType "unittest-release" {

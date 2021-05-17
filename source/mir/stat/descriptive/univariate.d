@@ -1,5 +1,5 @@
 /++
-This module contains algorithms for descriptive statistics.
+This module contains algorithms for univariate descriptive statistics.
 
 License: $(LINK2 http://boost.org/LICENSE_1_0.txt, Boost License 1.0).
 
@@ -16,7 +16,7 @@ T3=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3))
 T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 +/
 
-module mir.stat.descriptive;
+module mir.stat.descriptive.univariate;
 
 public import mir.math.stat:
     gmean,

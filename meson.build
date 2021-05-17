@@ -8,7 +8,16 @@ has_cpp_headers = false
 
 sources_list = [
     'mir/math/internal/powi',
-    'mir/stat/descriptive',
+    'mir/stat/descriptive/univariate',
+    'mir/stat/descriptive/histogram/buckets',
+    'mir/stat/descriptive/histogram/axis',
+    'mir/stat/descriptive/histogram/traits',
+    'mir/stat/descriptive/histogram/accumulator',
+    'mir/stat/descriptive/histogram/frequency',
+    'mir/stat/descriptive/histogram/package',
+    'mir/stat/descriptive/histogram/api/rc',
+    'mir/stat/descriptive/histogram/api/package',
+    'mir/stat/descriptive/package',
     'mir/stat/package',
     'mir/stat/transform',
 ]
