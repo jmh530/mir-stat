@@ -19,8 +19,8 @@ public import mir.stat.descriptive.histogram.traits;
 public import mir.stat.descriptive.histogram.api;
 
 //date: 5/17/2021
-// helper functions in axis need documented UTs
-// got transformAxis working properly, need to add documentation for TODOs, 
+// helper functions in axis need documented UTs (integralAxis/regularAxis, done,
+// left off on TransformAxis because I cannot get the test to pass b/c of built-ins)
 // rchistogram is missing UTs for transformAxis new version
 
 //later TODOs

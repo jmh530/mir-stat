@@ -17,6 +17,7 @@ T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 
 module mir.stat.descriptive.histogram.axis;
 
+import mir.functional: naryFun;
 import mir.stat.descriptive.histogram.traits: DefaultCountType, isBreakFunction;
 import mir.ndslice.slice: isSlice;
 import mir.ndslice.traits: isContiguousVector;
@@ -669,6 +670,58 @@ template integralAxis(alias breakFunction, AxisOptions axisOptions = AxisOptions
     }
 }
 
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    auto x0 = integralAxis!(size_t, double, AxisOptions())(10, 2.0);
+    auto x1 = integralAxis!(size_t, double)(10, 2.0);
+    auto x2 = integralAxis!double(10, 2.0);
+    auto x3 = integralAxis(10, 2.0);
+
+    static assert(is(typeof(x0) == IntegralAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(x1) == IntegralAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(x2) == IntegralAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(x2) == IntegralAxis!(DefaultCountType, double, AxisOptions())));
+}
+
+/// Example with break function
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y0 = integralAxis!(size_t, double, sturges, AxisOptions())(x, 2.0);
+    auto y1 = integralAxis!(size_t, double, sturges)(x, 2.0);
+    auto y2 = integralAxis!(double, sturges)(x, 2.0);
+    auto y3 = integralAxis!sturges(x, 2.0);
+
+    static assert(is(typeof(y0) == IntegralAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y1) == IntegralAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y2) == IntegralAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(y3) == IntegralAxis!(DefaultCountType, double, AxisOptions())));
+}
+
+// Check number of bins
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y = integralAxis!(size_t, double, sturges, AxisOptions())(x, 2.0);
+
+    assert(y.N_bin == 4);
+}
+
 /++
 Axis for an interval of values with equal width steps.
 
@@ -1037,6 +1090,58 @@ template regularAxis(alias breakFunction, AxisOptions axisOptions = AxisOptions(
     }
 }
 
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    auto x0 = regularAxis!(size_t, double, AxisOptions())(10, 2.0, 12.0);
+    auto x1 = regularAxis!(size_t, double)(10, 2.0, 12.0);
+    auto x2 = regularAxis!double(10, 2.0, 12.0);
+    auto x3 = regularAxis(10, 2.0, 12.0);
+
+    static assert(is(typeof(x0) == RegularAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(x1) == RegularAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(x2) == RegularAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(x2) == RegularAxis!(DefaultCountType, double, AxisOptions())));
+}
+
+/// Example with break function
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y0 = regularAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y1 = regularAxis!(size_t, double, sturges)(x, 2.0, 12.0);
+    auto y2 = regularAxis!(double, sturges)(x, 2.0, 12.0);
+    auto y3 = regularAxis!sturges(x, 2.0, 12.0);
+
+    static assert(is(typeof(y0) == RegularAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y1) == RegularAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y2) == RegularAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(y3) == RegularAxis!(DefaultCountType, double, AxisOptions())));
+}
+
+// Check number of bins
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y = regularAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
+
+    assert(y.N_bin == 4);
+}
+
 /++
 Axis for an interval of values with equal underlying steps that may be
 transformed to provide fast, unequal steps.
@@ -1062,7 +1167,6 @@ See_also:
 struct TransformAxis(CountT, BinT, alias transform, alias inverseTransform, AxisOptions axisOptions)
 {
     import mir.math.common: fmamath;
-    import mir.functional: naryFun;
 
 private:
     RegularAxis!(CountType, BinType, axisOptions) regularAxis = void;
@@ -1163,34 +1267,7 @@ public:
     {
         return regularAxis.index(transformFunction(x));
     }
-/*
-    ///
-    @fmamath Bin!BinType bin()(size_t x) const
-    {
-        import mir.math.common: log, log10, log2, sqrt;
 
-        Bin!BinType regularBin = regularAxis.bin(x);
-
-        static if (__traits(isSame, transform, log)) {
-            import mir.math.common: exp;
-            regularBin.low = exp(regularBin.low);
-            regularBin.high = exp(regularBin.high);
-        } else static if (__traits(isSame, transform, log10)) {
-            regularBin.low = (cast(BinType) 10) ^^ regularBin.low;
-            regularBin.high = (cast(BinType) 10) ^^ regularBin.high;
-        } else static if (__traits(isSame, transform, log2)) {
-            regularBin.low = (cast(BinType) 2) ^^ regularBin.low;
-            regularBin.high = (cast(BinType) 2) ^^ regularBin.high;
-        } else static if (__traits(isSame, transform, sqrt)) {
-            regularBin.low = regularBin.low ^^ (cast(BinType) 2);
-            regularBin.high = regularBin.high ^^ (cast(BinType) 2);
-        } else {
-            static assert(0, "TransformAxis.bin: Built-in inverse function not supplied (only defined for when transform is log, log10, log2, and sqrt), use overload to provide inverse transform function");
-        }
-
-        return regularBin;
-    }
-*/
     ///
     @fmamath Bin!BinType bin(size_t x) const
     {
@@ -1433,8 +1510,27 @@ private T square(T)(T x) {
     return x ^^ 2;
 }
 
-/// TODO
-template inverseTransformMapping(alias transform) {
+/++
+Provides a built-in inverse to a $(LREF transform) function.
+
+The following functions are supported: $(MATHREF common, exp), $(MATHREF common, log),
+$(MATHREF common, log2), $(MATHREF common, log10), $(MATHREF common, sqrt).
+
+Params:
+    transform = function to transform axis
+
+See_also:
+    $(LREF TransformAxis),
+    $(LREF transformAxis),
+    $(LREF inverseTransformMapping),
+    $(MATHREF common, exp),
+    $(MATHREF common, log),
+    $(MATHREF common, log2),
+    $(MATHREF common, log10),
+    $(MATHREF common, sqrt)
++/
+template inverseTransformMapping(alias transform)
+{
     import mir.math.common: exp, log, log2, log10, sqrt;
 
     static if (__traits(isSame, transform, exp)) {
@@ -1452,7 +1548,39 @@ template inverseTransformMapping(alias transform) {
     }
 }
 
-/// TODO
+///
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: exp, log, log2, log10, sqrt, approxEqual;
+
+    assert(inverseTransformMapping!exp(5f).approxEqual(log(5f)));
+    assert(inverseTransformMapping!log(5f).approxEqual(exp(5f)));
+    assert(inverseTransformMapping!log2(5f) == 32);
+    assert(inverseTransformMapping!log10(5f) == 100_000);
+    assert(inverseTransformMapping!sqrt(5f) == 25);
+}
+
+/++
+Check that an inverse function is provided by default for $(LREF transform).
+
+The following functions are supported: $(MATHREF common, exp), $(MATHREF common, log),
+$(MATHREF common, log2), $(MATHREF common, log10), $(MATHREF common, sqrt).
+
+Params:
+    transform = function to transform axis
+
+See_also:
+    $(LREF TransformAxis),
+    $(LREF transformAxis),
+    $(LREF inverseTransformMapping),
+    $(MATHREF common, exp),
+    $(MATHREF common, log),
+    $(MATHREF common, log2),
+    $(MATHREF common, log10),
+    $(MATHREF common, sqrt)
++/
 template hasInverseTransformMapping(alias transform)
 {
     import mir.math.common: exp, log, log2, log10, sqrt;
@@ -1472,6 +1600,20 @@ template hasInverseTransformMapping(alias transform)
     }
 }
 
+///
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: exp, log, log2, log10, sqrt;
+
+    static assert(hasInverseTransformMapping!exp);
+    static assert(hasInverseTransformMapping!log);
+    static assert(hasInverseTransformMapping!log2);
+    static assert(hasInverseTransformMapping!log10);
+    static assert(hasInverseTransformMapping!sqrt);
+}
+
 /++
 Factory function to produce $(LREF TransformAxis) object
 
@@ -1489,7 +1631,14 @@ TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)
     return TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
 }
 
-/// TODO
+/++
+Params:
+    CountType = the type that is used to count in histogram bins
+    BinType = the type of the values that are compared in histogram bins
+    transform = function to transform axis
+    inverseTransform = function to undo transform
+    axisOptions = options
++/
 TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions)
     transformAxis(CountType, BinType, alias transform, AxisOptions axisOptions = AxisOptions())(CountType N_bin, BinType low, BinType high)
         if (hasInverseTransformMapping!transform)
@@ -1503,6 +1652,7 @@ Params:
     BinType = the type of the values that are compared in histogram bins
     transform = function to transform axis
     inverseTransform = function to undo transform
+    axisOptions = options
 +/
 TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)
     transformAxis(BinType, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low, BinType high)
@@ -1510,7 +1660,12 @@ TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptio
     return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
 }
 
-/// TODO
+/++
+Params:
+    BinType = the type of the values that are compared in histogram bins
+    transform = function to transform axis
+    axisOptions = options
++/
 TransformAxis!(DefaultCountType, BinType, transform, inverseTransformMapping!transform, axisOptions)
     transformAxis(BinType, alias transform, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low, BinType high)
         if (hasInverseTransformMapping!transform)
@@ -1523,6 +1678,7 @@ TransformAxis!(DefaultCountType, BinType, transform, inverseTransformMapping!tra
 Params:
     transform = function to transform axis
     inverseTransform = function to undo transform
+    axisOptions = options
 +/
 template transformAxis(alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
 {
@@ -1542,6 +1698,7 @@ template transformAxis(alias transform, alias inverseTransform, AxisOptions axis
 /++
 Params:
     transform = function to transform axis
+    axisOptions = options
 +/
 template transformAxis(alias transform, AxisOptions axisOptions = AxisOptions())
     if (hasInverseTransformMapping!transform)
@@ -1724,6 +1881,70 @@ template transformAxis(alias transform, alias breakFunction, AxisOptions axisOpt
         return .transformAxis!(DefaultCountType, DeepElementType!(Slice!(Iterator, N, kind)), transform, inverseTransform, breakFunction, axisOptions)(slice.move, low, high);
     }
 }
+
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: exp, log;
+    
+    auto x0 = transformAxis!(size_t, double, exp, log, AxisOptions())(10, 2.0, 12.0);
+    auto x1 = transformAxis!(size_t, double, exp, log)(10, 2.0, 12.0);
+    auto x2 = transformAxis!(size_t, double, exp)(10, 2.0, 12.0);
+    auto x3 = transformAxis!(double, exp, log)(10, 2.0, 12.0);
+    auto x4 = transformAxis!(double, exp)(10, 2.0, 12.0); // not currently working
+    auto x5 = transformAxis!(exp, log)(10, 2.0, 12.0);
+    auto x6 = transformAxis!exp(10, 2.0, 12.0);
+
+    static assert(is(typeof(x0) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x1) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x2) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x3) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x4) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x5) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x6) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+}
+/*
+/// Example with break function
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y0 = transformAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y1 = transformAxis!(size_t, double, sturges)(x, 2.0, 12.0);
+    auto y2 = transformAxis!(double, sturges)(x, 2.0, 12.0);
+    auto y3 = transformAxis!sturges(x, 2.0, 12.0);
+
+    static assert(is(typeof(y0) == TransformAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y1) == TransformAxis!(size_t, double, AxisOptions())));
+    static assert(is(typeof(y2) == TransformAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(y3) == TransformAxis!(DefaultCountType, double, AxisOptions())));
+}
+
+// Check number of bins
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y = transformAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
+
+    assert(y.N_bin == 4);
+}
+*/
+
+//need to test all the hasInverseTransformMappings
+//need to test anonymous functions and other functions
 
 /++
 Axis where the bins are made up of values from an enum.
