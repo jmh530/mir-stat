@@ -291,7 +291,7 @@ template CountTypeOf(T)
     alias CountTypeOf = T.CountType;
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
@@ -306,7 +306,12 @@ unittest
     static assert(is(CountTypeOf!FooAxis == double));
 }
 
-///
+/++
+CHeck if `breakFunction` is `sturges`, `scott`, or `freedmanDiaconis`.
+
+Params:
+    breakFunction = function
++/
 template isBreakFunction(alias breakFunction)
 {
     import mir.stat.descriptive.histogram.breaks: sturges, scott, freedmanDiaconis;
@@ -325,7 +330,7 @@ template isBreakFunction(alias breakFunction)
     }
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest

@@ -18,8 +18,8 @@ public import mir.stat.descriptive.histogram.axis;
 public import mir.stat.descriptive.histogram.traits;
 public import mir.stat.descriptive.histogram.api;
 
-//date: 5/30/2021
-// rchistogram is missing UTs for transformAxis new version (ensure automatic inverseTransform works)
+//date: 5/31/2021
+// rchistogram only allows break function passed directly to axis, not rcHistogram
 
 //later TODOs
 //see if it is possible to get multiple axis working?

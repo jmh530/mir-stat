@@ -17,15 +17,11 @@ T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 
 module mir.stat.descriptive.histogram.api.rc;
 
-import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
-
-
-import std.meta: allSatisfy;
-import std.range.primitives: isRandomAccessRange;
-import mir.primitives: DeepElementType;
-import mir.rc.array: RCI;
 import mir.ndslice.slice: Slice, SliceKind;
-import mir.stat.descriptive.histogram.axis: AxisOptions;
+import mir.rc.array: RCI;
+import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
+import mir.stat.descriptive.histogram.axis: AxisOptions, 
+    inverseTransformMapping, hasInverseTransformMapping, isTransformFunction;
 import mir.stat.descriptive.histogram.traits: isAxis;
 
 /++
@@ -171,7 +167,9 @@ Params:
 +/
 private
 template rchistogramImpl(CountType, BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions)
-    if (__traits(isTemplate, Axis))
+    if (__traits(isTemplate, Axis) && 
+        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
 
@@ -192,6 +190,42 @@ template rchistogramImpl(CountType, BinType, alias Axis, alias transform, alias 
         import core.lifetime: move;
 
         auto transformAxis = TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
+        return .rchistogramImplBasic(slice.move, transformAxis);
+    }
+}
+
+/++
+Params:
+    CountType = the type that is used to count in histogram bins
+    BinType = the type of the values that are compared in histogram bins
+    Axis = type of axis
+    transform = function to transform axis
+    axisOptions = options
++/
+private
+template rchistogramImpl(CountType, BinType, alias Axis, alias transform, AxisOptions axisOptions)
+    if (__traits(isTemplate, Axis) && 
+        hasInverseTransformMapping!transform)
+{
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+
+    /++
+    Params:
+        slice = slice
+        low = the value of the smallest bin
+        high = the value of the largest bin
+    +/
+    HistogramAccumulator!(Slice!(RCI!(CountType)), TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions))
+        rchistogramImpl(Iterator, size_t N, SliceKind kind)(
+                   Slice!(Iterator, N, kind) slice,
+                   CountType N_bin,
+                   BinType low,
+                   BinType high)
+        if (__traits(isSame, Axis, TransformAxis))
+    {
+        import core.lifetime: move;
+
+        auto transformAxis = TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions)(N_bin, low, high);
         return .rchistogramImplBasic(slice.move, transformAxis);
     }
 }
@@ -228,7 +262,7 @@ template rchistogramImpl(CountType, Iterator, alias Axis, AxisOptions axisOption
 }
 
 /++
-Computes a histogram of the inputs.
+Computes a reference-counted histogram of the inputs.
 
 If the `Axis` has an `options` member, the histogram may optionally allow
 for overflow and underflow members.
@@ -414,7 +448,9 @@ Params:
     axisOptions = options
 +/
 template rchistogram(CountType, BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
-    if (__traits(isTemplate, Axis))
+    if (__traits(isTemplate, Axis) &&
+        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
 
@@ -435,6 +471,40 @@ template rchistogram(CountType, BinType, alias Axis, alias transform, alias inve
         import core.lifetime: move;
 
         return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransform, axisOptions)(slice.move, N_bin, low, high);
+    }
+}
+
+/++
+Params:
+    CountType = the type that is used to count in histogram bins
+    BinType = the type of the values that are compared in histogram bins
+    Axis = type of axis
+    transform = function to transform axis
+    axisOptions = options
++/
+template rchistogram(CountType, BinType, alias Axis, alias transform, AxisOptions axisOptions = AxisOptions())
+    if (__traits(isTemplate, Axis) &&
+        hasInverseTransformMapping!transform)
+{
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+
+    /++
+    Params:
+        slice = slice
+        low = the value of the smallest bin
+        high = the value of the largest bin
+    +/
+    HistogramAccumulator!(Slice!(RCI!(CountType)), TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions))
+        rchistogram(Iterator, size_t N, SliceKind kind)(
+                   Slice!(Iterator, N, kind) slice,
+                   CountType N_bin,
+                   BinType low,
+                   BinType high)
+        if (__traits(isSame, Axis, TransformAxis))
+    {
+        import core.lifetime: move;
+
+        return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransformMapping!transform, axisOptions)(slice.move, N_bin, low, high);
     }
 }
 
@@ -542,7 +612,9 @@ Params:
     axisOptions = options
 +/
 template rchistogram(BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
-    if (__traits(isTemplate, Axis))
+    if (__traits(isTemplate, Axis) &&
+        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
     import mir.stat.descriptive.histogram.traits: DefaultCountType;
@@ -565,6 +637,43 @@ template rchistogram(BinType, alias Axis, alias transform, alias inverseTransfor
         import core.lifetime: move;
 
         return .rchistogramImpl!(DefaultCountType, BinType, Axis, transform, inverseTransform, axisOptions)(slice.move, N_bin, low, high);
+    }
+}
+
+/++
+Params:
+    CountType = the type that is used to count in histogram bins
+    BinType = the type of the values that are compared in histogram bins
+    Axis = type of axis
+    transform = function to transform axis
+    inverseTransform = function to undo transform
+    axisOptions = options
++/
+template rchistogram(BinType, alias Axis, alias transform, AxisOptions axisOptions = AxisOptions())
+    if (__traits(isTemplate, Axis) &&
+        hasInverseTransformMapping!transform)
+{
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+    import mir.stat.descriptive.histogram.traits: DefaultCountType;
+    
+
+    /++
+    Params:
+        slice = slice
+        low = the value of the smallest bin
+        high = the value of the largest bin
+    +/
+    HistogramAccumulator!(Slice!(RCI!(DefaultCountType)), TransformAxis!(DefaultCountType, BinType, transform, inverseTransformMapping!transform, axisOptions))
+        rchistogram(Iterator, size_t N, SliceKind kind)(
+                   Slice!(Iterator, N, kind) slice,
+                   DefaultCountType N_bin,
+                   BinType low,
+                   BinType high)
+        if (__traits(isSame, Axis, TransformAxis))
+    {
+        import core.lifetime: move;
+
+        return .rchistogramImpl!(DefaultCountType, BinType, Axis, transform, inverseTransformMapping!transform, axisOptions)(slice.move, N_bin, low, high);
     }
 }
 
@@ -656,7 +765,9 @@ Params:
     axisOptions = options
 +/
 template rchistogram(CountType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
-    if (__traits(isTemplate, Axis))
+    if (__traits(isTemplate, Axis) &&
+        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
 
@@ -678,6 +789,40 @@ template rchistogram(CountType, alias Axis, alias transform, alias inverseTransf
         import core.lifetime: move;
 
         return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransform, axisOptions)(slice.move, N_bin, low, high);
+    }
+}
+
+/++
+Params:
+    CountType = the type that is used to count in histogram bins
+    transform = function to transform axis
+    Axis = type of axis
+    axisOptions = options
++/
+template rchistogram(CountType, alias Axis, alias transform, AxisOptions axisOptions = AxisOptions())
+    if (__traits(isTemplate, Axis) &&
+        hasInverseTransformMapping!transform)
+{
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+
+    /++
+    Params:
+        slice = slice
+        N_bin = number of bins
+        low = the value of the smallest bin
+        high = the value of the largest bin
+    +/
+    HistogramAccumulator!(Slice!(RCI!(CountType)), TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions))
+        rchistogram(Iterator, size_t N, SliceKind kind, BinType)(
+            Slice!(Iterator, N, kind) slice,
+            CountType N_bin,
+            BinType low,
+            BinType high)
+        if (__traits(isSame, Axis, TransformAxis))
+    {
+        import core.lifetime: move;
+
+        return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransformMapping!transform, axisOptions)(slice.move, N_bin, low, high);
     }
 }
 
@@ -828,11 +973,46 @@ template rchistogram(alias Axis, alias transform, alias inverseTransform, AxisOp
             CountType N_bin,
             BinType low,
             BinType high)
-        if (__traits(isSame, Axis, TransformAxis))
+        if (__traits(isSame, Axis, TransformAxis) &&
+            isTransformFunction!(transform, BinType) && 
+            isTransformFunction!(inverseTransform, BinType))
     {
         import core.lifetime: move;
 
         return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransform, axisOptions)(slice.move, N_bin, low, high);
+    }
+}
+
+/++
+Params:
+    Axis = type of axis
+    transform = function to transform axis
+    axisOptions = options
++/
+template rchistogram(alias Axis, alias transform, AxisOptions axisOptions = AxisOptions())
+    if (__traits(isTemplate, Axis) &&
+        hasInverseTransformMapping!transform)
+{
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+
+    /++
+    Params:
+        slice = slice
+        N_bin = number of bins
+        low = the value of the smallest bin
+        high = the value of the largest bin
+    +/
+    HistogramAccumulator!(Slice!(RCI!(CountType)), TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions))
+        rchistogram(Iterator, size_t N, SliceKind kind, CountType, BinType)(
+            Slice!(Iterator, N, kind) slice,
+            CountType N_bin,
+            BinType low,
+            BinType high)
+        if (__traits(isSame, Axis, TransformAxis))
+    {
+        import core.lifetime: move;
+
+        return .rchistogramImpl!(CountType, BinType, Axis, transform, inverseTransformMapping!transform, axisOptions)(slice.move, N_bin, low, high);
     }
 }
 
@@ -1052,6 +1232,22 @@ unittest
     // Or string lambda
     auto h5 = x.rchistogram!(TransformAxis, "log10(a)", "10.0 ^^ a")(4u, 10.0 ^^ 2.0, 10.0 ^^ 12.0);
     assert(h5.counts == result1);
+
+    // For some functions, inverseTransform is not needed
+    auto h6 = x.rchistogram!(TransformAxis, log10)(4u, 10.0 ^^ 2.0, 10.0 ^^ 12.0);
+    assert(h6.counts == result1);
+    static assert(is(h6.CountType == uint));
+
+    // Pass axis directly without inverseTransform
+    auto regularAxis4 = transformAxis!log10(4u, 10.0 ^^ 2.0, 10.0 ^^ 12.0);
+    auto h7 = x.rchistogram(regularAxis4);
+    assert(h7.counts == result1);
+    
+    // Same, but use function to calculate N_bin
+    auto regularAxis5 = x.transformAxis!(log10, sturges)(10.0 ^^ 2.0, 10.0 ^^ 12.0);
+    auto h8 = x.rchistogram(regularAxis5);
+    assert(h8.counts == result2);
+
 }
 
 /// Enum Axis example
