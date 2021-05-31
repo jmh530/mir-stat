@@ -18,10 +18,8 @@ public import mir.stat.descriptive.histogram.axis;
 public import mir.stat.descriptive.histogram.traits;
 public import mir.stat.descriptive.histogram.api;
 
-//date: 5/17/2021
-// helper functions in axis need documented UTs (integralAxis/regularAxis, done,
-// left off on TransformAxis because I cannot get the test to pass b/c of built-ins)
-// rchistogram is missing UTs for transformAxis new version
+//date: 5/30/2021
+// rchistogram is missing UTs for transformAxis new version (ensure automatic inverseTransform works)
 
 //later TODOs
 //see if it is possible to get multiple axis working?

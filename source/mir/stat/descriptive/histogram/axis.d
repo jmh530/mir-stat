@@ -22,7 +22,7 @@ import mir.stat.descriptive.histogram.traits: DefaultCountType, isBreakFunction;
 import mir.ndslice.slice: isSlice;
 import mir.ndslice.traits: isContiguousVector;
 import std.meta: NoDuplicates;
-import std.traits: EnumMembers;
+import std.traits: EnumMembers, isFunction;
 
 ///
 struct IsRightClosed
@@ -1164,7 +1164,7 @@ See_also:
     $(LREF CategoryAxis),
     $(LREF VariableAxis)
 +/
-struct TransformAxis(CountT, BinT, alias transform, alias inverseTransform, AxisOptions axisOptions)
+struct TransformAxis(CountT, BinT, alias transform, alias inverseTransform, AxisOptions axisOptions)  
 {
     import mir.math.common: fmamath;
 
@@ -1498,12 +1498,8 @@ unittest
     assert(transformAxis3.bin(0) == Bin!double(4.0, 9.0));
 }
 
-private T tenPow(T)(T x) {
+private T exp10(T)(T x) {
     return 10 ^^ x;
-}
-
-private T twoPow(T)(T x) {
-    return 2 ^^ x;
 }
 
 private T square(T)(T x) {
@@ -1513,8 +1509,9 @@ private T square(T)(T x) {
 /++
 Provides a built-in inverse to a $(LREF transform) function.
 
-The following functions are supported: $(MATHREF common, exp), $(MATHREF common, log),
-$(MATHREF common, log2), $(MATHREF common, log10), $(MATHREF common, sqrt).
+The following functions are supported: $(MATHREF common, exp), $(MATHREF common, exp2), 
+$(MATHREF common, log), $(MATHREF common, log2), $(MATHREF common, log10), 
+$(MATHREF common, sqrt).
 
 Params:
     transform = function to transform axis
@@ -1524,6 +1521,7 @@ See_also:
     $(LREF transformAxis),
     $(LREF inverseTransformMapping),
     $(MATHREF common, exp),
+    $(MATHREF common, exp2),
     $(MATHREF common, log),
     $(MATHREF common, log2),
     $(MATHREF common, log10),
@@ -1531,16 +1529,18 @@ See_also:
 +/
 template inverseTransformMapping(alias transform)
 {
-    import mir.math.common: exp, log, log2, log10, sqrt;
+    import mir.math.common: exp, exp2, log, log2, log10, sqrt;
 
     static if (__traits(isSame, transform, exp)) {
         alias inverseTransformMapping = log;
+    } else static if (__traits(isSame, transform, exp2)) {
+        alias inverseTransformMapping = log2;
     } else static if (__traits(isSame, transform, log)) {
         alias inverseTransformMapping = exp;
     } else static if (__traits(isSame, transform, log2)) {
-        alias inverseTransformMapping = twoPow;
+        alias inverseTransformMapping = exp2;
     } else static if (__traits(isSame, transform, log10)) {
-        alias inverseTransformMapping = tenPow;
+        alias inverseTransformMapping = exp10;
     } else static if (__traits(isSame, transform, sqrt)) {
         alias inverseTransformMapping = square;
     } else {
@@ -1548,16 +1548,17 @@ template inverseTransformMapping(alias transform)
     }
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
 {
-    import mir.math.common: exp, log, log2, log10, sqrt, approxEqual;
+    import mir.math.common: exp, exp2, log, log2, log10, sqrt, approxEqual;
 
     assert(inverseTransformMapping!exp(5f).approxEqual(log(5f)));
+    assert(inverseTransformMapping!exp2(5f).approxEqual(log2(5f)));
     assert(inverseTransformMapping!log(5f).approxEqual(exp(5f)));
-    assert(inverseTransformMapping!log2(5f) == 32);
+    assert(inverseTransformMapping!log2(5f).approxEqual(exp2(5f)));
     assert(inverseTransformMapping!log10(5f) == 100_000);
     assert(inverseTransformMapping!sqrt(5f) == 25);
 }
@@ -1565,8 +1566,9 @@ unittest
 /++
 Check that an inverse function is provided by default for $(LREF transform).
 
-The following functions are supported: $(MATHREF common, exp), $(MATHREF common, log),
-$(MATHREF common, log2), $(MATHREF common, log10), $(MATHREF common, sqrt).
+The following functions are supported: $(MATHREF common, exp), 
+$(MATHREF common, exp2), $(MATHREF common, log), $(MATHREF common, log2),
+$(MATHREF common, log10), $(MATHREF common, sqrt).
 
 Params:
     transform = function to transform axis
@@ -1576,6 +1578,7 @@ See_also:
     $(LREF transformAxis),
     $(LREF inverseTransformMapping),
     $(MATHREF common, exp),
+    $(MATHREF common, exp2),
     $(MATHREF common, log),
     $(MATHREF common, log2),
     $(MATHREF common, log10),
@@ -1583,9 +1586,11 @@ See_also:
 +/
 template hasInverseTransformMapping(alias transform)
 {
-    import mir.math.common: exp, log, log2, log10, sqrt;
+    import mir.math.common: exp, exp2, log, log2, log10, sqrt;
 
     static if (__traits(isSame, transform, exp)) {
+        enum bool hasInverseTransformMapping = true;
+    } else static if (__traits(isSame, transform, exp2)) {
         enum bool hasInverseTransformMapping = true;
     } else static if (__traits(isSame, transform, log)) {
         enum bool hasInverseTransformMapping = true;
@@ -1600,22 +1605,47 @@ template hasInverseTransformMapping(alias transform)
     }
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
 {
-    import mir.math.common: exp, log, log2, log10, sqrt;
+    import mir.math.common: exp, exp2, log, log2, log10, sqrt;
 
     static assert(hasInverseTransformMapping!exp);
+    static assert(hasInverseTransformMapping!exp2);
     static assert(hasInverseTransformMapping!log);
     static assert(hasInverseTransformMapping!log2);
     static assert(hasInverseTransformMapping!log10);
     static assert(hasInverseTransformMapping!sqrt);
 }
 
+///
+package
+template isTransformFunction(alias T, BinT)
+{
+    static if (!isBreakFunction!T) {
+        import std.traits: isSomeFunction;
+        static if (isSomeFunction!T) {
+            enum bool isTransformFunction = true;
+        } else static if (__traits(isTemplate, T) && isSomeFunction!(T!BinT)) {
+            enum bool isTransformFunction = true;
+        } else static if (is(typeof(T) : string)) {
+            static if (__traits(compiles, naryFun!T(cast(BinT) 0.5f))) {
+                enum bool isTransformFunction = true;
+            } else {
+                enum bool isTransformFunction = false;
+            }
+        } else {
+            enum bool isTransformFunction = false;
+        }
+    } else {
+        enum bool isTransformFunction = false;
+    }
+}
+
 /++
-Factory function to produce $(LREF TransformAxis) object
+Factory function to produce $(LREF TransformAxis) object.
 
 Params:
     N_bin = number of bins
@@ -1627,6 +1657,8 @@ See_also:
 +/
 TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)
     transformAxis(CountType, BinType, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())(CountType N_bin, BinType low, BinType high)
+        if (isTransformFunction!(transform, BinType) && 
+            isTransformFunction!(inverseTransform, BinType))
 {
     return TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
 }
@@ -1656,6 +1688,8 @@ Params:
 +/
 TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)
     transformAxis(BinType, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low, BinType high)
+        if (isTransformFunction!(transform, BinType) && 
+            isTransformFunction!(inverseTransform, BinType))
 {
     return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
 }
@@ -1690,6 +1724,8 @@ template transformAxis(alias transform, alias inverseTransform, AxisOptions axis
     +/
     TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)
         transformAxis(BinType)(DefaultCountType N_bin, BinType low, BinType high)
+            if (isTransformFunction!(transform, BinType) && 
+                isTransformFunction!(inverseTransform, BinType))
     {
         return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
     }
@@ -1727,7 +1763,9 @@ Params:
     axisOptions = options
 +/
 template transformAxis(CountType, BinType, alias transform, alias inverseTransform, alias breakFunction, AxisOptions axisOptions = AxisOptions())
-    if (isBreakFunction!breakFunction)
+    if (isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType) && 
+        isBreakFunction!breakFunction)
 {
     import mir.ndslice.slice: Slice, SliceKind;
 
@@ -1766,8 +1804,9 @@ template transformAxis(CountType, BinType, alias transform, alias breakFunction,
     TransformAxis!(CountType, BinType, transform, inverseTransformMapping!transform, axisOptions)
         transformAxis(Iterator, size_t N, SliceKind kind)(Slice!(Iterator, N, kind) slice, BinType low, BinType high)
     {
+        import core.lifetime: move;
         alias inverseTransform = inverseTransformMapping!transform;
-        return .transformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)(cast(CountType) breakFunction(slice.lightScope), low, high);
+        return .transformAxis!(CountType, BinType, transform, inverseTransform, breakFunction, axisOptions)(slice.move, low, high);
     }
 }
 
@@ -1780,7 +1819,9 @@ Params:
     axisOptions = options
 +/
 template transformAxis(BinType, alias transform, alias inverseTransform, alias breakFunction, AxisOptions axisOptions = AxisOptions())
-    if (isBreakFunction!breakFunction)
+    if (isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(inverseTransform, BinType) && 
+        isBreakFunction!breakFunction)
 {
     import mir.ndslice.slice: Slice, SliceKind;
 
@@ -1794,7 +1835,7 @@ template transformAxis(BinType, alias transform, alias inverseTransform, alias b
         transformAxis(Iterator, size_t N, SliceKind kind)(Slice!(Iterator, N, kind) slice, BinType low, BinType high)
     {
         import core.lifetime: move;
-        return .transformAxis!(DefaultCountType, BinType, transform, inverseTransfornm, breakFunction, axisOptions)(slice.move, low, high);
+        return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, breakFunction, axisOptions)(slice.move, low, high);
     }
 }
 
@@ -1846,7 +1887,9 @@ template transformAxis(alias transform, alias inverseTransform, alias breakFunct
     +/
     TransformAxis!(DefaultCountType, DeepElementType!(Slice!(Iterator, N, kind)), transform, inverseTransform, axisOptions)
         transformAxis(Iterator, size_t N, SliceKind kind, BinType)(Slice!(Iterator, N, kind) slice, BinType low, BinType high)
-            if (is(BinType : DeepElementType!(Slice!(Iterator, N, kind))))
+            if (isTransformFunction!(transform, BinType) && 
+                isTransformFunction!(inverseTransform, BinType) &&
+                is(BinType : DeepElementType!(Slice!(Iterator, N, kind))))
     {
         import core.lifetime: move;
         return .transformAxis!(DefaultCountType, DeepElementType!(Slice!(Iterator, N, kind)), transform, inverseTransform, breakFunction, axisOptions)(slice.move, low, high);
@@ -1888,12 +1931,12 @@ version(mir_stat_test_hist)
 unittest
 {
     import mir.math.common: exp, log;
-    
+
     auto x0 = transformAxis!(size_t, double, exp, log, AxisOptions())(10, 2.0, 12.0);
     auto x1 = transformAxis!(size_t, double, exp, log)(10, 2.0, 12.0);
     auto x2 = transformAxis!(size_t, double, exp)(10, 2.0, 12.0);
     auto x3 = transformAxis!(double, exp, log)(10, 2.0, 12.0);
-    auto x4 = transformAxis!(double, exp)(10, 2.0, 12.0); // not currently working
+    auto x4 = transformAxis!(double, exp)(10, 2.0, 12.0);
     auto x5 = transformAxis!(exp, log)(10, 2.0, 12.0);
     auto x6 = transformAxis!exp(10, 2.0, 12.0);
 
@@ -1905,26 +1948,37 @@ unittest
     static assert(is(typeof(x5) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
     static assert(is(typeof(x6) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
 }
-/*
+
 /// Example with break function
 version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
 {
+    import mir.math.common: exp, log;
     import mir.ndslice.slice: sliced;
-    import mir.stat.descriptive.histogram.breaks: sturges;
+    import mir.stat.descriptive.histogram.breaks;
 
     auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
 
-    auto y0 = transformAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
-    auto y1 = transformAxis!(size_t, double, sturges)(x, 2.0, 12.0);
-    auto y2 = transformAxis!(double, sturges)(x, 2.0, 12.0);
-    auto y3 = transformAxis!sturges(x, 2.0, 12.0);
+    auto y0 = transformAxis!(size_t, double, exp, log, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y1 = transformAxis!(size_t, double, exp, log, sturges)(x, 2.0, 12.0);
+    auto y2 = transformAxis!(double, exp, log, sturges)(x, 2.0, 12.0);
+    auto y3 = transformAxis!(exp, log, sturges)(x, 2.0, 12.0);
 
-    static assert(is(typeof(y0) == TransformAxis!(size_t, double, AxisOptions())));
-    static assert(is(typeof(y1) == TransformAxis!(size_t, double, AxisOptions())));
-    static assert(is(typeof(y2) == TransformAxis!(DefaultCountType, double, AxisOptions())));
-    static assert(is(typeof(y3) == TransformAxis!(DefaultCountType, double, AxisOptions())));
+    static assert(is(typeof(y0) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y1) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y2) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y3) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+
+    auto y4 = transformAxis!(size_t, double, exp, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y5 = transformAxis!(size_t, double, exp, sturges)(x, 2.0, 12.0);
+    auto y6 = transformAxis!(double, exp, sturges)(x, 2.0, 12.0);
+    auto y7 = transformAxis!(exp, sturges)(x, 2.0, 12.0);
+
+    static assert(is(typeof(y4) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y5) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y6) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y7) == TransformAxis!(DefaultCountType, double, exp, log, AxisOptions())));
 }
 
 // Check number of bins
@@ -1932,19 +1986,144 @@ version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
 {
+    import mir.math.common: exp, log;
     import mir.ndslice.slice: sliced;
     import mir.stat.descriptive.histogram.breaks: sturges;
 
     auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
 
-    auto y = transformAxis!(size_t, double, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y = transformAxis!(size_t, double, exp, log, sturges, AxisOptions())(x, 2.0, 12.0);
 
     assert(y.N_bin == 4);
 }
-*/
 
-//need to test all the hasInverseTransformMappings
-//need to test anonymous functions and other functions
+// Check all inverseTransform mappings
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: exp, exp2, log, log2, log10, sqrt;
+
+    auto x0 = transformAxis!(size_t, double, exp, AxisOptions())(10, 2.0, 12.0);
+    auto x1 = transformAxis!(size_t, double, exp2, AxisOptions())(10, 2.0, 12.0);
+    auto x2 = transformAxis!(size_t, double, log, AxisOptions())(10, 2.0, 12.0);
+    auto x3 = transformAxis!(size_t, double, log2, AxisOptions())(10, 2.0, 12.0);
+    auto x4 = transformAxis!(size_t, double, log10, AxisOptions())(10, 2.0, 12.0);
+    auto x5 = transformAxis!(size_t, double, sqrt, AxisOptions())(10, 2.0, 12.0);
+
+    static assert(is(typeof(x0) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x1) == TransformAxis!(size_t, double, exp2, log2, AxisOptions())));
+    static assert(is(typeof(x2) == TransformAxis!(size_t, double, log, exp, AxisOptions())));
+    static assert(is(typeof(x3) == TransformAxis!(size_t, double, log2, exp2, AxisOptions())));
+    static assert(is(typeof(x4) == TransformAxis!(size_t, double, log10, exp10, AxisOptions())));
+    static assert(is(typeof(x5) == TransformAxis!(size_t, double, sqrt, square, AxisOptions())));
+}
+
+// test string and lambda functions
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: exp, log;
+
+    alias f = a => exp(a);
+    alias g = a => log(a);
+
+    auto x00 = transformAxis!(size_t, double, exp, log, AxisOptions())(10, 2.0, 12.0);
+    auto x01 = transformAxis!(size_t, double, "exp(a)", "log(a)", AxisOptions())(10, 2.0, 12.0);
+    auto x02 = transformAxis!(size_t, double, exp, "log(a)", AxisOptions())(10, 2.0, 12.0);
+    auto x03 = transformAxis!(size_t, double, "exp(a)", log, AxisOptions())(10, 2.0, 12.0);
+    auto x04 = transformAxis!(size_t, double, f, g, AxisOptions())(10, 2.0, 12.0);
+    auto x05 = transformAxis!(size_t, double, exp, g, AxisOptions())(10, 2.0, 12.0);
+    auto x06 = transformAxis!(size_t, double, f, log, AxisOptions())(10, 2.0, 12.0);
+    auto x07 = transformAxis!(double, "exp(a)", "log(a)")(10, 2.0, 12.0);
+    auto x08 = transformAxis!(double, exp, "log(a)")(10, 2.0, 12.0);
+    auto x09 = transformAxis!(double, "exp(a)", log)(10, 2.0, 12.0);
+    auto x10 = transformAxis!(double, f, g)(10, 2.0, 12.0);
+    auto x11 = transformAxis!(double, exp, g)(10, 2.0, 12.0);
+    auto x12 = transformAxis!(double, f, log)(10, 2.0, 12.0);
+    auto x13 = transformAxis!("exp(a)", "log(a)")(10, 2.0, 12.0);
+    auto x14 = transformAxis!(exp, "log(a)")(10, 2.0, 12.0);
+    auto x15 = transformAxis!("exp(a)", log)(10, 2.0, 12.0);
+    auto x16 = transformAxis!(f, g)(10, 2.0, 12.0);
+    auto x17 = transformAxis!(exp, g)(10, 2.0, 12.0);
+    auto x18 = transformAxis!(f, log)(10, 2.0, 12.0);
+
+    static assert(is(typeof(x00) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(x01) == TransformAxis!(size_t, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(x02) == TransformAxis!(size_t, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(x03) == TransformAxis!(size_t, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(x04) == TransformAxis!(size_t, double, f, g, AxisOptions())));
+    static assert(is(typeof(x05) == TransformAxis!(size_t, double, exp, g, AxisOptions())));
+    static assert(is(typeof(x06) == TransformAxis!(size_t, double, f, log, AxisOptions())));
+    static assert(is(typeof(x07) == TransformAxis!(DefaultCountType, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(x08) == TransformAxis!(DefaultCountType, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(x09) == TransformAxis!(DefaultCountType, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(x10) == TransformAxis!(DefaultCountType, double, f, g, AxisOptions())));
+    static assert(is(typeof(x11) == TransformAxis!(DefaultCountType, double, exp, g, AxisOptions())));
+    static assert(is(typeof(x12) == TransformAxis!(DefaultCountType, double, f, log, AxisOptions())));
+    static assert(is(typeof(x13) == TransformAxis!(DefaultCountType, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(x14) == TransformAxis!(DefaultCountType, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(x15) == TransformAxis!(DefaultCountType, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(x16) == TransformAxis!(DefaultCountType, double, f, g, AxisOptions())));
+    static assert(is(typeof(x17) == TransformAxis!(DefaultCountType, double, exp, g, AxisOptions())));
+    static assert(is(typeof(x18) == TransformAxis!(DefaultCountType, double, f, log, AxisOptions())));
+}
+
+// test string and lambda functions with breaks
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.math.common: exp, log;
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.breaks: sturges;
+
+    alias f = a => exp(a);
+    alias g = a => log(a);
+
+    auto x = [0.0, 1, 2, 3, 4, 5, 6, 7].sliced;
+
+    auto y00 = transformAxis!(size_t, double, exp, log, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y01 = transformAxis!(size_t, double, "exp(a)", "log(a)", sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y02 = transformAxis!(size_t, double, exp, "log(a)", sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y03 = transformAxis!(size_t, double, "exp(a)", log, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y04 = transformAxis!(size_t, double, f, g, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y05 = transformAxis!(size_t, double, exp, g, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y06 = transformAxis!(size_t, double, f, log, sturges, AxisOptions())(x, 2.0, 12.0);
+    auto y07 = transformAxis!(double, "exp(a)", "log(a)", sturges)(x, 2.0, 12.0);
+    auto y08 = transformAxis!(double, exp, "log(a)", sturges)(x, 2.0, 12.0);
+    auto y09 = transformAxis!(double, "exp(a)", log, sturges)(x, 2.0, 12.0);
+    auto y10 = transformAxis!(double, f, g, sturges)(x, 2.0, 12.0);
+    auto y11 = transformAxis!(double, exp, g, sturges)(x, 2.0, 12.0);
+    auto y12 = transformAxis!(double, f, log, sturges)(x, 2.0, 12.0);
+    auto y13 = transformAxis!("exp(a)", "log(a)", sturges)(x, 2.0, 12.0);
+    auto y14 = transformAxis!(exp, "log(a)", sturges)(x, 2.0, 12.0);
+    auto y15 = transformAxis!("exp(a)", log, sturges)(x, 2.0, 12.0);
+    auto y16 = transformAxis!(f, g, sturges)(x, 2.0, 12.0);
+    auto y17 = transformAxis!(exp, g, sturges)(x, 2.0, 12.0);
+    auto y18 = transformAxis!(f, log, sturges)(x, 2.0, 12.0);
+
+    static assert(is(typeof(y00) == TransformAxis!(size_t, double, exp, log, AxisOptions())));
+    static assert(is(typeof(y01) == TransformAxis!(size_t, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(y02) == TransformAxis!(size_t, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(y03) == TransformAxis!(size_t, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(y04) == TransformAxis!(size_t, double, f, g, AxisOptions())));
+    static assert(is(typeof(y05) == TransformAxis!(size_t, double, exp, g, AxisOptions())));
+    static assert(is(typeof(y06) == TransformAxis!(size_t, double, f, log, AxisOptions())));
+    static assert(is(typeof(y07) == TransformAxis!(DefaultCountType, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(y08) == TransformAxis!(DefaultCountType, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(y09) == TransformAxis!(DefaultCountType, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(y10) == TransformAxis!(DefaultCountType, double, f, g, AxisOptions())));
+    static assert(is(typeof(y11) == TransformAxis!(DefaultCountType, double, exp, g, AxisOptions())));
+    static assert(is(typeof(y12) == TransformAxis!(DefaultCountType, double, f, log, AxisOptions())));
+    static assert(is(typeof(y13) == TransformAxis!(DefaultCountType, double, "exp(a)", "log(a)", AxisOptions())));
+    static assert(is(typeof(y14) == TransformAxis!(DefaultCountType, double, exp, "log(a)", AxisOptions())));
+    static assert(is(typeof(y15) == TransformAxis!(DefaultCountType, double, "exp(a)", log, AxisOptions())));
+    static assert(is(typeof(y16) == TransformAxis!(DefaultCountType, double, f, g, AxisOptions())));
+    static assert(is(typeof(y17) == TransformAxis!(DefaultCountType, double, exp, g, AxisOptions())));
+    static assert(is(typeof(y18) == TransformAxis!(DefaultCountType, double, f, log, AxisOptions())));
+}
 
 /++
 Axis where the bins are made up of values from an enum.
@@ -2051,7 +2230,7 @@ struct EnumAxis(CountT, BinT)
     }
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
@@ -2077,7 +2256,7 @@ unittest
     assert(enumAxis.bin!(2) == Bin!Foo(Foo.C));
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
@@ -2103,7 +2282,7 @@ unittest
     assert(enumAxis.bin!(2) == Bin!Foo(Foo.C));
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
@@ -2148,6 +2327,24 @@ EnumAxis!(CountType, BinType) enumAxis(CountType, BinType)()
 EnumAxis!(DefaultCountType, BinType) enumAxis(BinType)()
 {
     return .enumAxis!(DefaultCountType, BinType)();
+}
+
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    enum Foo
+    {
+        A,
+        B,
+        C
+    }
+    auto x0 = enumAxis!(size_t, Foo);
+    auto x1 = enumAxis!Foo;
+    
+    static assert(is(typeof(x0) == EnumAxis!(size_t, Foo)));
+    static assert(is(typeof(x1) == EnumAxis!(DefaultCountType, Foo)));
 }
 
 /++
@@ -2261,7 +2458,7 @@ struct CategoryAxis(CountT, BinT, AxisOptions axisOptions)
     }
 }
 
-///
+/// Example
 version(mir_stat_test_hist)
 @safe pure nothrow @nogc
 unittest
@@ -2337,6 +2534,27 @@ CategoryAxis!(DefaultCountType, BinType, axisOptions)
     categoryAxis(BinType, AxisOptions axisOptions = AxisOptions())()
 {
     return .categoryAxis!(DefaultCountType, BinType, axisOptions)();
+}
+
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    enum Foo
+    {
+        A,
+        B,
+        C
+    }
+
+    auto x0 = categoryAxis!(size_t, Foo, AxisOptions());
+    auto x1 = categoryAxis!(Foo, AxisOptions());
+    auto x2 = categoryAxis!Foo;
+
+    static assert(is(typeof(x0) == CategoryAxis!(size_t, Foo, AxisOptions())));
+    static assert(is(typeof(x1) == CategoryAxis!(DefaultCountType, Foo, AxisOptions())));
+    static assert(is(typeof(x2) == CategoryAxis!(DefaultCountType, Foo, AxisOptions())));
 }
 
 /++
@@ -2702,4 +2920,29 @@ template variableAxis(AxisOptions axisOptions = AxisOptions())
     {
         return .variableAxis!(DefaultCountType, Iterator, axisOptions)(slice.move);
     }
+}
+
+/// Example
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.rc.array;
+
+    size_t len = 11;
+    auto counts = mininitRcarray!(double)(len);
+    size_t i = 0;
+    while (i < len)
+    {
+        counts[i] = i + 2.0;
+        i++;
+    }
+
+    auto x0 = variableAxis!(size_t, RCI!(double), AxisOptions())(counts.asSlice);
+    auto x1 = variableAxis!(RCI!(double))(counts.asSlice);
+    auto x2 = variableAxis(counts.asSlice);
+
+    static assert(is(typeof(x0) == VariableAxis!(size_t, RCI!(double), AxisOptions())));
+    static assert(is(typeof(x1) == VariableAxis!(DefaultCountType, RCI!(double), AxisOptions())));
+    static assert(is(typeof(x2) == VariableAxis!(DefaultCountType, RCI!(double), AxisOptions())));
 }
