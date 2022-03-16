@@ -17,8 +17,10 @@ T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 
 module mir.stat.descriptive.histogram.accumulator;
 
-import std.meta: allSatisfy;
+import mir.primitives: DeepElementType;
 import mir.stat.descriptive.histogram.traits: isAxis;
+import std.meta: allSatisfy;
+import std.traits: isNumeric;
 
 struct DenseStorage(Storage)
 {
@@ -53,6 +55,22 @@ struct DenseStorage(Storage)
     }
 }
 
+private
+template put(size_t i)
+{
+    void put(Storage, T)(Storage storage, T x)
+        if (is(Storage : size_t[]) && isNumeric!T)
+    {
+        storage[x]++;
+    }
+
+    void put(Storage, T)(Storage storage, T x)
+        if (is(Storage : size_t[][]) && isNumeric!T)
+    {
+        storage[i][x]++;
+    }
+}
+
 /++
 Accumulator used to generate histogram.
 
@@ -75,7 +93,7 @@ struct HistogramAccumulator(Storage, Axis...)
     if (Axis.length > 0 &&
         allSatisfy!(isAxis, Axis))
 {
-    import std.meta: allSatisfy, staticMap;
+    import std.meta: allSatisfy, anySatisfy, staticMap;
     import std.traits: hasMember, isIterable, isSomeString;
     import mir.primitives: hasShape, DeepElementType;
     import mir.stat.descriptive.histogram.traits: includeOverflow, includeUnderflow,
@@ -90,7 +108,7 @@ struct HistogramAccumulator(Storage, Axis...)
 //need to do any allow over/underflow, then just put them all
 //3) Need to be able to put another dense storage
 private:
-    static if (includeOverflow!Axis)
+    static if (anySatisfy!(includeOverflow, Axis))
     {
         static if (N == 1) {
             ///
@@ -101,7 +119,7 @@ private:
         }
     }
 
-    static if (includeUnderflow!Axis)
+    static if (anySatisfy!(includeUnderflow, Axis))
     {
         static if (N == 1) {
             ///
@@ -126,13 +144,13 @@ public:
     ///
     alias CountType = DeepElementType!Storage;
     
-    static if (includeOverflow!Axis)
+    static if (anySatisfy!(includeOverflow, Axis))
     {
         ///
         alias OverflowType = typeof(overflowStorage.storage);
     }
 
-    static if (includeUnderflow!Axis)
+    static if (anySatisfy!(includeUnderflow, Axis))
     {
         ///
         alias UnderflowType = typeof(underflowStorage.storage);
@@ -179,38 +197,52 @@ public:
             } else if (axis[i].isUnderflow(x)) {
                 underflowStorage.put!i();
             } else {
-                putStorage!(T, i)(x);
+                counts.put!i(axis[i].index(x));
             }
         } else static if (!includeOverflow!(Axis[i]) && includeUnderflow!(Axis[i])) {
             if (axis[i].isUnderflow(x)) {
                 underflowStorage.put!i();
             } else {
-                putStorage!(T, i)(x);
+                counts.put!i(axis[i].index(x));
             }
         } else static if (includeOverflow!(Axis[i]) && !includeUnderflow!(Axis[i])) {
             if (axis[i].isOverflow(x)) {
                 overflowStorage.put!i();
             } else {
-                putStorage!(T, i)(x);
+                counts.put!i(axis[i].index(x));
             }
         } else {
-            putStorage!(T, i)(x);
+            counts.put!i(axis[i].index(x));
         }
     }
-
+/*
     private
     void putStorage(T, size_t i)(T x)
     {
-        counts[axis[i].index(x)]++;
+        static if (Axis.length == 1) {
+            counts[axis[i].index(x)]++;
+        } else static if (Axis.length == 2) {
+            counts[i][axis[i].index(x)]++;
+        } else {
+            static assert (0, "HistogramAccumulator.putStorage: only two Axis currently supported");
+        }
     }
-
+*/
     ///
     void put(HistogramAccumulator!(Storage, Axis) h)
     {
         import mir.stat.descriptive.histogram.traits: hasAxisOptions;
 
         assert(axis == h.axis);
-        counts[] += h.counts[];
+        static if (Axis.length == 1) {
+            counts[] += h.counts[];
+        } else static if (Axis.length == 2) {
+            for (size_t i = 0; i < Axis.length; i++) {
+                counts[i][] += h.counts[i][];
+            }
+        } else {
+            static assert(0, "HistogramAccumulator.put: three-dimensional HistogramAccumulator not supported yet");
+        }
         static if (hasAxisOptions!(Axis[0])) {
             static if (Axis[0].options.enableOverflow && hasMember!(typeof(h), "overflowStorage")) {
                 static if (N == 1) {
@@ -229,7 +261,7 @@ public:
         }
     }
 
-    static if (includeOverflow!Axis)
+    static if (anySatisfy!(includeOverflow, Axis))
     {
         ///
         OverflowType overflow()()
@@ -238,7 +270,7 @@ public:
         }
     }
 
-    static if (includeUnderflow!Axis)
+    static if (anySatisfy!(includeUnderflow, Axis))
     {
         ///
         UnderflowType underflow()()
@@ -659,4 +691,33 @@ unittest
     auto h = HistogramAccumulator!(size_t[1], typeof(circleAxis))(count, circleAxis);
     auto p = Point(0.25, 0.5);
     h.put(p);
+}
+
+// Check Multiple IntegralAxis
+version(mir_stat_test_hist)
+//@safe pure nothrow
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
+
+    auto integralAxis1 = IntegralAxis!(size_t, double, AxisOptions())(5, 2.0);
+    auto integralAxis2 = IntegralAxis!(size_t, double, AxisOptions())(6, 3.0);
+    size_t[][] counts = [[0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0]];
+
+    auto h = HistogramAccumulator!(size_t[][], typeof(integralAxis1), typeof(integralAxis2))(counts, integralAxis1, integralAxis2);
+    h.put(3.0, 5.0);
+    assert(counts[0] == [0, 1, 0, 0, 0]);
+    assert(counts[1] == [0, 0, 1, 0, 0, 0]);
+
+    //h.put([2.0, 2.5, 3.0, 3.5], [3.0, 3.5, 4.0, 4.5]);
+    
+    //import std.stdio: writeln;
+    //writeln(counts);
+    //several aspects of HistogramAccumulator are only working with one axis (Axis[0]). 
+    //need to start by getting put to work properly
+    //h.put([2.0, 2.5, 3.0, 3.5]);
+    //assert(counts == [2, 2, 0, 0, 0]);
+    //h.put(4.0);
+    //assert(counts == [2, 2, 1, 0, 0]);
 }

@@ -21,6 +21,10 @@ public import mir.stat.descriptive.histogram.api;
 //date: 5/31/2021
 // rchistogram only allows break function passed directly to axis, not rcHistogram
 
+//date: 6/10/2021
+// doing some work with multiple axes
+// got stuck b/c CountType checks Storage with DeepElementType.
+
 //later TODOs
 //see if it is possible to get multiple axis working?
 //use binarySearch for search instead of loop for variable
@@ -31,8 +35,8 @@ public import mir.stat.descriptive.histogram.api;
 
 // 11/12/2020
 // Priorities: 
-// 1) a) Add slice functions
-//    b) Add range interface
+// 1) a) Add slice functions to histogram
+//    b) Add range interface to histogram
 // 2) A way to convert the results to string that Ilya will be happy with
 // 3) Multi-axis histograms
 // 4) Historgram with GC version, makeHistogram to handle any allocation strategy
