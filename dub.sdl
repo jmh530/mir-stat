@@ -13,7 +13,12 @@ buildType "unittest" {
     buildOptions "unittests" "debugMode" "debugInfo"
     versions "mir_stat_test"
     //versions "mir_stat_test_fp"
+    //versions "mir_stat_test_cov_performance"
     dflags "-lowmem"
+}
+buildType "unittest-perf" {
+    buildOptions "unittests" "releaseMode" "optimize" "inline"
+    versions "mir_stat_test_cov_performance"
 }
 buildType "unittest-dip1008" {
     buildOptions "unittests" "debugMode" "debugInfo"
