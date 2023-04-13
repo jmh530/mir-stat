@@ -1615,3 +1615,5 @@ unittest
         writeln(r[i]);
     }
 }
+
+//TODO: compile with dub test --build=mir_stat_test_cov_performance --compiler=ldc2
