@@ -1428,8 +1428,8 @@ unittest
     }
     auto x = a + 10.0 ^^ 12;
     auto y = b + 10.0 ^^ 12;
-    x.cov(y).shouldApprox == a.cov(b);
-    x.cov!"twoPass"(y).shouldApprox == a.cov!"twoPass"(b);
+    x.cov(y).shouldApprox(0.0001) == a.cov(b);
+    x.cov!"twoPass"(y).shouldApprox(0.0001) == a.cov!"twoPass"(b);
     /*
     import std.stdio: writeln;
     writeln(x.cov!"twoPass"(y));
