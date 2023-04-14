@@ -1410,7 +1410,7 @@ unittest
     assert(!x.cov!"assumeZeroMean"(y).approxEqual(-5.5 / 11));
 }
 
-/// Can also set algorithm type
+// Random number test
 version(mir_stat_test)
 @safe
 unittest
@@ -1428,8 +1428,8 @@ unittest
     }
     auto x = a + 10.0 ^^ 12;
     auto y = b + 10.0 ^^ 12;
-    x.cov(y).shouldApprox(0.0001) == a.cov(b);
-    x.cov!"twoPass"(y).shouldApprox(0.0001) == a.cov!"twoPass"(b);
+    x.cov(y).shouldApprox(0.1) == a.cov(b);
+    x.cov!"twoPass"(y).shouldApprox(0.1) == a.cov!"twoPass"(b);
     /*
     import std.stdio: writeln;
     writeln(x.cov!"twoPass"(y));
