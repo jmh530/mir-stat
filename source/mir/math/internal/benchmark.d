@@ -6,20 +6,20 @@ import std.traits: isMutable;
 package(mir)
 template benchmarkValues(fun...)
 {
-    Duration[fun.length] benchmarkValues(T)(size_t n, out T[fun.length] values)
+    Duration[fun.length] benchmarkValues(T)(size_t numberSimulations, out T[fun.length] values)
     {
-		import std.datetime.stopwatch: StopWatch, AutoStart;
+        import std.datetime.stopwatch: StopWatch, AutoStart;
         Duration[fun.length] result;
         auto sw = StopWatch(AutoStart.yes);
 
         foreach (i, unused; fun) {
             values[i] = 0;
             sw.reset();
-            foreach (size_t j; 1 .. n) {
+            foreach (size_t j; 1 .. numberSimulations) {
                 values[i] += fun[i]();
             }
             result[i] = sw.peek();
-            values[i] /= n;
+            values[i] /= numberSimulations;
         }
 
         return result;
@@ -29,13 +29,13 @@ template benchmarkValues(fun...)
 package(mir)
 template benchmarkRandom(fun...)
 {
-    Duration[fun.length] benchmarkRandom(T)(size_t n, size_t m, out T[fun.length] values)
+    Duration[fun.length] benchmarkRandom(T)(size_t numberSimulations, size_t m, out T[fun.length] values)
         if (isMutable!T)
     {
         import mir.ndslice.allocation: stdcFreeSlice, stdcUninitSlice;
         import mir.random.engine: Random, threadLocalPtr;
         import mir.random.variable: NormalVariable;
-		import std.datetime.stopwatch: StopWatch, AutoStart;
+        import std.datetime.stopwatch: StopWatch, AutoStart;
 
         Random* gen = threadLocalPtr!Random;
         auto rv = NormalVariable!T(0, 1);
@@ -47,7 +47,7 @@ template benchmarkRandom(fun...)
         foreach (i, unused; fun) {
             values[i] = 0;
             sw.reset();
-            foreach (size_t j; 1 .. n) {
+            foreach (size_t j; 1 .. numberSimulations) {
                 sw.stop();
                 foreach (ref e; r)
                     e = rv(gen);
@@ -55,7 +55,7 @@ template benchmarkRandom(fun...)
                 values[i] += fun[i](r);
             }
             result[i] = sw.peek();
-            values[i] /= n;
+            values[i] /= numberSimulations;
         }
 		r.stdcFreeSlice;
         return result;
@@ -65,13 +65,13 @@ template benchmarkRandom(fun...)
 package(mir)
 template benchmarkRandom2(fun...)
 {
-    Duration[fun.length] benchmarkRandom2(T)(size_t n, size_t m, out T[fun.length] values)
+    Duration[fun.length] benchmarkRandom2(T)(size_t numberSimulations, size_t m, out T[fun.length] values)
         if (isMutable!T)
     {
         import mir.ndslice.allocation: stdcFreeSlice, stdcUninitSlice;
         import mir.random.engine: Random, threadLocalPtr;
         import mir.random.variable: NormalVariable;
-		import std.datetime.stopwatch: StopWatch, AutoStart;
+        import std.datetime.stopwatch: StopWatch, AutoStart;
 
         Random* gen = threadLocalPtr!Random;
         auto rv = NormalVariable!T(0, 1);
@@ -84,7 +84,7 @@ template benchmarkRandom2(fun...)
         foreach (i, unused; fun) {
             values[i] = 0;
             sw.reset();
-            foreach (size_t j; 1 .. n) {
+            foreach (size_t j; 1 .. numberSimulations) {
                 sw.stop();
                 foreach (size_t k; 0 .. m) {
                     r1[k] = rv(gen);
@@ -94,10 +94,10 @@ template benchmarkRandom2(fun...)
                 values[i] += fun[i](r1, r2);
             }
             result[i] = sw.peek();
-            values[i] /= n;
+            values[i] /= numberSimulations;
         }
-		r1.stdcFreeSlice;
-		r2.stdcFreeSlice;
+        r1.stdcFreeSlice;
+        r2.stdcFreeSlice;
         return result;
     }
 }
