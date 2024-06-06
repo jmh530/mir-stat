@@ -20,6 +20,7 @@ has_cpp_headers = false
 
 sources_list = [
     'mir/math/internal/fp_powi',
+    'mir/math/internal/linearAlgebra/api',
     'mir/math/internal/linearAlgebra/kernel',
     'mir/math/internal/linearAlgebra/types',
     'mir/math/internal/linearAlgebra/package',

@@ -10,6 +10,8 @@ Copyright: 2023-4 Mir Stat Authors.
 module mir.math.internal.linearAlgebra;
 
 ///
+public import mir.math.internal.linearAlgebra.api;
+///
 public import mir.math.internal.linearAlgebra.types;
 
 version(mir_stat_test_blas)
