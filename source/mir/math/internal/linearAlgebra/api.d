@@ -41,6 +41,7 @@ Params:
 Result:
     m(rows) x n(cols)
 +/
+/*
 @safe pure nothrow @nogc
 Slice!(RCI!T, 2) mtimes(T, SliceKind kindA, SliceKind kindB)(
     Slice!(const(T)*, 2, kindA) a,
@@ -361,7 +362,8 @@ do
     auto scopeB = b.lightScope.lightConst;
     return mtimes(a, scopeB);
 }
-
+*/
+/*
 /// Matrix-matrix multiplication (real)
 version(mir_stat_test_blas)
 @safe pure nothrow
@@ -540,13 +542,350 @@ unittest
     assert(mtimes(x, y) == 16);
     assert(mtimes(y, x) == 16);
 }
+*/
+//I think he solution is to implement the toconst functions from slice
+import mir.math.internal.linearAlgebra.types: SelfAdjointView;
+Slice!(RCI!T, 2) mtimes(Uplo uplo, T, SliceKind kindA, SliceKind kindB)(
+    SelfAdjointView!(uplo, const(T)*, kindA) a,
+    Slice!(const(T)*, 2, kindB) b
+)
+    if (isFloatingPoint!T)
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(a.length!0 == a.length!1, "`a` assumed to be a square matrix");
+}
+out (c)
+{
+    assert(c.length!0 == a.length!0, "The first dimension of the result must match the first dimension of `a`");
+    assert(c.length!1 == b.length!1, "The second dimension of the result must match the second dimension of `b`");
+}
+do
+{
+    import mir.math.internal.linearAlgebra.kernel: mtimesSymmetricKernel;
+    import mir.ndslice.allocation: mininitRcslice;
 
+    auto c = mininitRcslice!T(a.length!0, b.length!1);
+    mtimesSymmetricKernel(a, b, c.lightScope);
+    return c;
+}
+/*
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const SelfAdjointView!(uplo, RCI!A, kindA) a,
+    auto ref const Slice!(RCI!B, 2, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(a.length!0 == a.length!1, "`a` assumed to be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    auto scopeB = b.lightScope.lightConst;
+}
+
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const SelfAdjointView!(uplo, RCI!A, kindA) a,
+    Slice!(const(B)*, 2, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(a.length!0 == a.length!1, "`a` assumed to be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    return mtimes(scopeA, b);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    SelfAdjointView!(uplo, const(A)*, kindA) a,
+    auto ref const Slice!(RCI!B, 2, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(a.length!0 == a.length!1, "`a` assumed to be a square matrix");
+}
+do
+{
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(a, scopeB);
+}
+
+/++
+Params:
+    a = m(rows) x m(cols) symmetric matrix
+    b = m(rows) x 1(cols) vector
+Result:
+    m(rows) x 1(cols)
++/
+@safe pure nothrow @nogc
+Slice!(RCI!T, 1) mtimes(T, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    SelfAdjointView!(uplo, const(T)*, kindA) a,
+    Slice!(const(T)*, 1, kindB) b
+)
+    if (isFloatingPoint!T)
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the length of `b`");
+    assert(a.length!0 == a.length!1, "`a` must be a square matrix");
+}
+out (c)
+{
+    assert(c.length == a.length);
+}
+do
+{
+    import mir.math.internal.linearAlgebra.kernel: mtimesSymmetricKernel;
+    import mir.ndslice.allocation: mininitRcslice;
+
+    auto c = mininitRcslice!T(a.length!0);
+    mtimesSymmetricKernel(a, b, c.lightScope);
+    return c;
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const SelfAdjointView!(uplo, RCI!A, kindA) a,
+    auto ref const Slice!(RCI!B, 1, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the length of `b`");
+    assert(a.length!0 == a.length!1, "`a` must be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(scopeA, scopeB);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const SelfAdjointView!(uplo, RCI!A, kindA) a,
+    Slice!(const(B)*, 1, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the length of `b`");
+    assert(a.length!0 == a.length!1, "`a` must be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    return mtimes(scopeA, b);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    SelfAdjointView!(uplo, const(A)*, kindA) a,
+    auto ref const Slice!(RCI!B, 1, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the length of `b`");
+    assert(a.length!0 == a.length!1, "`a` must be a square matrix");
+}
+do
+{
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(a, scopeB);
+}
+
+/+
+Params:
+    a = m(rows) x n(cols) matrix
+    b = n(rows) x n(cols) symmetric matrix
+Result:
+    m(rows) x n(cols)
++/
+Slice!(RCI!T, 2) mtimes(T, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    Slice!(const(T)*, 2, kindA) a,
+    SelfAdjointView!(uplo, const(T)*, kindB) b
+)
+    if (isFloatingPoint!T)
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` assumed to be a square matrix");
+}
+out (c)
+{
+    assert(c.length!0 == a.length!0, "The first dimension of the result must match the first dimension of `a`");
+    assert(c.length!1 == b.length!1, "The second dimension of the result must match the second dimension of `b`");
+}
+do
+{
+    import mir.math.internal.linearAlgebra.kernel: mtimesSymmetricRightKernel;
+    import mir.ndslice.allocation: mininitRcslice;
+
+    auto c = mininitRcslice!T(a.length!0, b.length!1);
+    mtimesSymmetricRightKernel(a, b, c.lightScope);
+    return c;
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const Slice!(RCI!A, 2, kindA) a,
+    auto ref const SelfAdjointView!(uplo, RCI!B, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` assumed to be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(scopeA, scopeB);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const Slice!(RCI!A, 2, kindA) a,
+    SelfAdjointView!(uplo, const(B)*, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` assumed to be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    return mtimes(scopeA, b);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 2) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    Slice!(const(A)*, 2, kindA) a,
+    auto ref const SelfAdjointView!(uplo, RCI!B, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length!1 == b.length!0, "The second dimension of `a` must match the first dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` assumed to be a square matrix");
+}
+do
+{
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(a, scopeB);
+}
+
+/++
+Params:
+    a = 1(rows) x m(cols) vector
+    b = m(rows) x m(cols) symmetric matrix
+Result:
+    m(rows) x 1(cols)
++/
+@safe pure nothrow @nogc
+Slice!(RCI!T, 1) mtimes(T, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    Slice!(const(T)*, 1, kindA) a,
+    SelfAdjointView!(uplo, const(T)*, kindB) b
+)
+    if (isFloatingPoint!T)
+in
+{
+    assert(a.length == b.length!0, "The length of `a` must match the second dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` must be a square matrix");
+}
+out (c)
+{
+    assert(c.length == a.length);
+}
+do
+{
+    return mtimes(b, a);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const Slice!(RCI!A, 1, kindA) a,
+    auto ref const SelfAdjointView!(uplo, RCI!B, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length == b.length!0, "The length of `a` must match the second dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` must be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(scopeA, scopeB);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    auto ref const Slice!(RCI!A, 1, kindA) a,
+    SelfAdjointView!(uplo, const(B)*, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length == b.length!0, "The length of `a` must match the second dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` must be a square matrix");
+}
+do
+{
+    auto scopeA = a.lightScope.lightConst;
+    return mtimes(scopeA, b);
+}
+
+/// ditto
+@safe pure nothrow @nogc
+Slice!(RCI!(Unqual!A), 1) mtimes(A, B, SliceKind kindA, SliceKind kindB, Uplo uplo)(
+    Slice!(const(A)*, 1, kindA) a,
+    auto ref const SelfAdjointView!(uplo, RCI!B, kindB) b
+)
+    if (is(Unqual!A == Unqual!B))
+in
+{
+    assert(a.length == b.length!0, "The length of `a` must match the second dimension of `b`");
+    assert(b.length!0 == b.length!1, "`b` must be a square matrix");
+}
+do
+{
+    auto scopeB = b.lightScope.lightConst;
+    return mtimes(a, scopeB);
+}
+*/
 /++
 Similar to above, but allows for inputs to be symmetric.
 
 Params:
     uplo = controls whether matrix is upper symmetric or lower symmetric
 +/
+/*
 template mtimes(Uplo uplo = Uplo.Upper)
 {
     import mir.math.internal.linearAlgebra.types: SelfAdjointView;
@@ -893,7 +1232,8 @@ template mtimes(Uplo uplo = Uplo.Upper)
         return mtimes(a, scopeB);
     }
 }
-
+*/
+/*
 /// Symmetric Matrix-Matrix multiplication
 version(mir_stat_test_blas)
 @safe pure nothrow @nogc
@@ -975,7 +1315,55 @@ unittest
     auto yX = y.mtimes(X.asSelfAdjoint!(Uplo.Upper));
     assert(yX.equal(result));
 }
+*/
+// Symmetric Matrix-Matrix multiplication (testing with GC or RC)
+version(mir_stat_test_blas)
+@safe pure nothrow
+unittest
+{
+    import mir.algorithm.iteration: equal;
+    import mir.math.internal.linearAlgebra.types: asSelfAdjoint;
+    import mir.ndslice.allocation: mininitRcslice, uninitSlice;
+    import mir.ndslice.dynamic: transposed;
 
+    static immutable a = [[3.0, 5, 2], [5.0, 2, 3], [2.0, 3, 1]];
+    static immutable b = [[2.0, 3], [4.0, 3], [0.0, -5]];
+    static immutable c = [[26.0, 14], [18.0, 6], [16.0, 10]];
+
+    auto X_RC = mininitRcslice!double(3, 3);
+    auto X_GC = uninitSlice!double(3, 3);
+    auto Y_RC = mininitRcslice!double(3, 2);
+    auto Y_GC = uninitSlice!double(3, 2);
+    auto result = mininitRcslice!double(3, 2);
+
+    X_RC[] = a;
+    X_GC[] = a;
+    Y_RC[] = b;
+    Y_GC[] = b;
+    result[] = c;
+
+    import std.stdio: writeln;
+    debug writeln(typeid(typeof(X_GC.asSelfAdjoint!(Uplo.Upper))));
+    debug writeln(typeid(typeof(Y_GC)));
+    import mir.ndslice.slice: Contiguous;
+    auto val1 = X_GC.asSelfAdjoint!(Uplo.Upper);
+    auto val2 = val1.lightConst;
+    auto X_GC_Y_GC = mtimes!(Uplo.Upper, double, Contiguous, Contiguous)(val2, Y_GC);
+    assert(X_GC_Y_GC.equal(result));
+    /*
+    auto YT_GC_X_GC = Y_GC.transposed.mtimes(X_GC.asSelfAdjoint!(Uplo.Upper));
+    assert(YT_GC_X_GC.equal(result.transposed));
+    auto X_GC_Y_RC = X_GC.asSelfAdjoint!(Uplo.Upper).mtimes(Y_RC);
+    assert(X_GC_Y_RC.equal(result));
+    auto YT_RC_X_GC = Y_RC.transposed.mtimes(X_GC.asSelfAdjoint!(Uplo.Upper));
+    assert(YT_RC_X_GC.equal(result.transposed));
+    auto X_RC_Y_GC = X_RC.asSelfAdjoint!(Uplo.Upper).mtimes(Y_GC);
+    assert(X_RC_Y_GC.equal(result));
+    auto YT_GC_X_RC = Y_GC.transposed.mtimes(X_RC.asSelfAdjoint!(Uplo.Upper));
+    assert(YT_GC_X_RC.equal(result.transposed));
+    */
+}
+/*
 /++
 Similar to above, but allows for inputs to be triangular.
 
@@ -1335,7 +1723,7 @@ template mtimes(Uplo uplo = Uplo.Upper, Diag diag = Diag.NonUnit)
         return mtimes(a, scopeB);
     }
 }
-
+/*
 /// Triangular Matrix-Matrix multiplication
 version(mir_stat_test_blas)
 @safe pure nothrow @nogc
@@ -1420,5 +1808,5 @@ unittest
     auto yX = y.mtimes(X.asTriangular!(Uplo.Upper, Diag.NonUnit).transposed);
     assert(yX.equal(result));
 }
-
+*/
 }
