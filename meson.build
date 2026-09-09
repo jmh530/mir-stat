@@ -1,15 +1,32 @@
-project('mir-stat', 'd', version : '0.0.0', license: 'BSL-1.0')
+project('mir-stat', 'd', version : '0.3.1', license: 'Apache-2.0')
 
 description = 'Dlang Statistical Package'
 
-subprojects = ['mir-core', 'mir-algorithm']
+subprojects = [
+    'cblas-d',
+    'lapack-d',
+    'mir-algorithm',
+    'mir-blas',
+    'mir-core',
+    'mir-lapack',
+    'mir-random',
+]
+
+if target_machine.system() == 'linux'
+    subprojects += 'mir-linux-kernel'
+endif
 
 has_cpp_headers = false
 
 sources_list = [
+    'mir/math/internal/fp_powi',
     'mir/math/internal/powi',
+    'mir/math/internal/log_beta',
+    'mir/math/internal/log_binomial',
+    'mir/math/internal/xlogy',
+    'mir/stat/descriptive/multivariate',
     'mir/stat/descriptive/univariate',
-    'mir/stat/descriptive/histogram/buckets',
+    'mir/stat/descriptive/histogram/breaks',
     'mir/stat/descriptive/histogram/axis',
     'mir/stat/descriptive/histogram/traits',
     'mir/stat/descriptive/histogram/accumulator',
@@ -17,9 +34,44 @@ sources_list = [
     'mir/stat/descriptive/histogram/package',
     'mir/stat/descriptive/histogram/api/rc',
     'mir/stat/descriptive/histogram/api/package',
+    'mir/stat/descriptive/weighted',
+    'mir/stat/descriptive/aliases',
     'mir/stat/descriptive/package',
-    'mir/stat/package',
+    'mir/stat/constant',
+    'mir/stat/inference',
     'mir/stat/transform',
+    'mir/stat/package',
+    'mir/stat/distribution/bernoulli',
+    'mir/stat/distribution/beta',
+    'mir/stat/distribution/beta_proportion',
+    'mir/stat/distribution/binomial',
+    'mir/stat/distribution/categorical',
+    'mir/stat/distribution/cauchy',
+    'mir/stat/distribution/chi2',
+    'mir/stat/distribution/cornish_fisher',
+    'mir/stat/distribution/exponential',
+    'mir/stat/distribution/f',
+    'mir/stat/distribution/gamma',
+    'mir/stat/distribution/generalized_pareto',
+    'mir/stat/distribution/geometric',
+    'mir/stat/distribution/gev',
+    'mir/stat/distribution/hypergeometric',
+    'mir/stat/distribution/laplace',
+    'mir/stat/distribution/log_normal',
+    'mir/stat/distribution/logistic',
+    'mir/stat/distribution/negative_binomial',
+    'mir/stat/distribution/normal',
+    'mir/stat/distribution/pareto',
+    'mir/stat/distribution/poisson',
+    'mir/stat/distribution/rayleigh',
+    'mir/stat/distribution/students_t',
+    'mir/stat/distribution/uniform',
+    'mir/stat/distribution/uniform_discrete',
+    'mir/stat/distribution/weibull',
+    'mir/stat/distribution/cdf',
+    'mir/stat/distribution/invcdf',
+    'mir/stat/distribution/pdf',
+    'mir/stat/distribution/package',
 ]
 
 sources = []
