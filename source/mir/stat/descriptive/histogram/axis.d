@@ -430,7 +430,7 @@ public:
             static if (isIntegral!BinType) {
                 return cast(CountType) (x - _low);
             } else {
-                return cast(CountType) (floor(x) - _low);
+                return cast(CountType) floor(x - _low);
             }
         } else {
             static if (axisOptions.isCircular) {
@@ -484,6 +484,21 @@ unittest
     assert(integralAxis.bin(0) == Bin!double(2.0, 3.0));
     assert(integralAxis.bin(1) == Bin!double(3.0, 4.0));
     assert(integralAxis.bin(9) == Bin!double(11.0, 12.0));
+}
+
+// Fractional lower bounds
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    auto axis = IntegralAxis!(size_t, double, AxisOptions())(3, 0.5);
+
+    assert(axis.index(0.5) == 0);
+    assert(axis.index(1.25) == 0);
+    assert(axis.index(1.5) == 1);
+    assert(axis.index(2.25) == 1);
+    assert(axis.index(2.5) == 2);
+    assert(axis.index(3.25) == 2);
 }
 
 // With isRightClosed = true
