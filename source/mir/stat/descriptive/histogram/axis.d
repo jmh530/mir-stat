@@ -2198,10 +2198,10 @@ struct EnumAxis(CountT, BinT)
             foreach (size_t i, member; EnumMembers!BinType)
             {
                 if (value == member) {
-                    break;
+                    return cast(CountType) i;
                 }
-                return cast(CountType) i;
             }
+            assert(0, "EnumAxis.index: value is not an enum member");
         }
     }
     
@@ -2210,14 +2210,14 @@ struct EnumAxis(CountT, BinT)
     {
         import std.traits: EnumMembers;
 
-        assert(x <= N_bin(), "EnumAxis.bin: input must be less than or equal to N_bin()");
+        assert(x < N_bin(), "EnumAxis.bin: input must be less than N_bin()");
         return Bin!(BinType)(EnumMembers!BinType[x]);
     }
 
     ///
     Bin!BinType bin()(size_t x) const
     {
-        assert(x <= N_bin(), "EnumAxis.bin: input must be less than or equal to N_bin()");
+        assert(x < N_bin(), "EnumAxis.bin: input must be less than N_bin()");
 
         import std.traits: OriginalType, EnumMembers;
         import mir.stat.descriptive.histogram.traits: isSwitchable;
@@ -2238,12 +2238,56 @@ struct EnumAxis(CountT, BinT)
             foreach (size_t i, member; EnumMembers!BinType)
             {
                 if (x == i) {
-                    break;
+                    return Bin!BinType(member);
                 }
-                return Bin!BinType(member);
             }
+            assert(0, "EnumAxis.bin: index is out of range");
         }
     }
+}
+
+// Exercise both enum lookup fallbacks and their bounds checks.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import std.traits: EnumMembers;
+
+    enum Fraction : double { half = 0.5, oneAndHalf = 1.5, twoAndHalf = 2.5 }
+    enum Large
+    {
+        v00 = 100, v01, v02, v03, v04, v05, v06, v07, v08, v09,
+        v10, v11, v12, v13, v14, v15, v16, v17, v18, v19,
+        v20, v21, v22, v23, v24, v25, v26, v27, v28, v29,
+        v30, v31, v32, v33, v34, v35, v36, v37, v38, v39,
+        v40, v41, v42, v43, v44, v45, v46, v47, v48, v49, v50
+    }
+    static assert(EnumMembers!Large.length == 51);
+
+    void check(E)(E invalid)
+    {
+        EnumAxis!(size_t, E) axis;
+        foreach (size_t i, member; EnumMembers!E)
+        {
+            assert(axis.index(member) == i);
+            assert(axis.bin(i) == Bin!E(member));
+            assert(axis.bin!i() == Bin!E(member));
+        }
+        assertThrown!AssertError(axis.index(invalid));
+        assertThrown!AssertError(axis.bin(axis.N_bin));
+        assertThrown!AssertError(axis.bin(axis.N_bin + 1));
+        static assert(!__traits(compiles, axis.bin!(EnumMembers!E.length)()));
+    }
+
+    check!Fraction(cast(Fraction) 1.0);
+    check!Large(cast(Large) 99);
+
+    // The switch path must reject the one-past-end index at the same guard.
+    enum Small { first, second }
+    EnumAxis!(size_t, Small) small;
+    assertThrown!AssertError(small.bin(small.N_bin));
+    static assert(!__traits(compiles, small.bin!2()));
 }
 
 /// Example
