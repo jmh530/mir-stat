@@ -1,11 +1,11 @@
 /++
 This module contains an API for creating reference-counted histograms.
 
-License: $(LINK2 http://boost.org/LICENSE_1_0.txt, Boost License 1.0).
+License: $(HTTP www.apache.org/licenses/LICENSE-2.0, Apache-2.0)
 
 Authors: John Michael Hall, Ilya Yaroshenko
 
-Copyright: 2020 Mir Stat Authors.
+Copyright: 2026 Mir Stat Authors.
 
 Macros:
 SUBREF = $(REF_ALTTEXT $(TT $2), $2, mir, stat, $1)$(NBSP)
