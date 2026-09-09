@@ -3,6 +3,7 @@
 *.lst
 *.o
 *.pdf
+*.pdb
 *.s
 *.exe
 *.sublime-project
