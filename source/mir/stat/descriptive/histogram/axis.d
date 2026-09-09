@@ -1426,7 +1426,8 @@ unittest
     assert(transformAxis.index(10.0 ^^ 5.0) == 6);
     assert(transformAxis.index(10.0 ^^ 5.5) == 7);
     assert(transformAxis.index(10.0 ^^ 6.0) == 8);
-    assert(transformAxis.index(10.0 ^^ 11.5) == 19);
+    assert(transformAxis.index(10.0 ^^ 11.4) == 18);
+    assert(transformAxis.index(10.0 ^^ 11.6) == 19);
     assert(transformAxis.index(10.0 ^^ 11.75) == 19);
 }
 

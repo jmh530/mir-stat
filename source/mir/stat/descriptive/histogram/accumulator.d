@@ -5,7 +5,7 @@ License: $(LINK2 http://boost.org/LICENSE_1_0.txt, Boost License 1.0).
 
 Authors: John Michael Hall, Ilya Yaroshenko
 
-Copyright: 2020 Mir Stat Authors.
+Copyright: 2026 Mir Stat Authors.
 
 Macros:
 SUBREF = $(REF_ALTTEXT $(TT $2), $2, mir, stat, $1)$(NBSP)
@@ -58,8 +58,9 @@ struct DenseStorage(Storage)
 private
 template put(size_t i)
 {
-    void put(Storage, T)(Storage storage, T x)
-        if (is(Storage : size_t[]) && isNumeric!T)
+    void put(Storage, T)(ref Storage storage, T x)
+        if (isNumeric!T &&
+            __traits(compiles, { storage[x]++; }))
     {
         storage[x]++;
     }
@@ -654,7 +655,6 @@ version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
 {
-    import mir.functional: RefTuple, refTuple;
     import mir.stat.descriptive.histogram.axis: AxisOptions;
     
     struct Point
