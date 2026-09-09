@@ -401,8 +401,8 @@ public:
     ///
     bool isOverflow()(BinType x) const
     {
-        static if (axisOptions.isRightClosed &&
-                   !axisOptions.isCircular) {
+        static if (axisOptions.isRightClosed ||
+                   axisOptions.isCircular) {
             return x > high();
         } else {
             return x >= high();
@@ -816,8 +816,8 @@ public:
     ///
     bool isOverflow()(BinType x) const
     {
-        static if (axisOptions.isRightClosed &&
-                   !axisOptions.isCircular) {
+        static if (axisOptions.isRightClosed ||
+                   axisOptions.isCircular) {
             return x > _high;
         } else {
             return x >= _high;
@@ -1257,8 +1257,8 @@ public:
     ///
     bool isOverflow()(BinType x) const
     {
-        static if (axisOptions.isRightClosed &&
-                   !axisOptions.isCircular) {
+        static if (axisOptions.isRightClosed ||
+                   axisOptions.isCircular) {
             return x > _high;
         } else {
             return x >= _high;
@@ -2646,8 +2646,8 @@ public:
     ///
     bool isOverflow()(BinType x) const
     {
-        static if (axisOptions.isRightClosed &&
-                   !axisOptions.isCircular) {
+        static if (axisOptions.isRightClosed ||
+                   axisOptions.isCircular) {
             return x > high();
         } else {
             return x >= high();

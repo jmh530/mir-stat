@@ -721,3 +721,51 @@ unittest
     //h.put(4.0);
     //assert(counts == [2, 2, 1, 0, 0]);
 }
+
+// Circular endpoints must reach indexing even when flow counters are enabled.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.math.common: sqrt;
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis,
+        RegularAxis, TransformAxis, VariableAxis;
+
+    double square(double x) { return x * x; }
+
+    void check(Axis)(Axis axis)
+    {
+        size_t[] counts = [0, 0];
+        auto h = HistogramAccumulator!(size_t[], Axis)(counts, axis);
+        assert(!axis.isOverflow(axis.high));
+        assert(!axis.isUnderflow(axis.low));
+
+        h.put(axis.high);
+        h.put(axis.low);
+        static if (Axis.options.isRightClosed)
+            assert(h.counts == [0, 2]);
+        else
+            assert(h.counts == [2, 0]);
+        assert(h.overflow == 0);
+        assert(h.underflow == 0);
+
+        h.put(axis.high + 1.0);
+        h.put(axis.low - 1.0);
+        assert(h.overflow == 1);
+        assert(h.underflow == 1);
+        static if (Axis.options.isRightClosed)
+            assert(h.counts == [0, 2]);
+        else
+            assert(h.counts == [2, 0]);
+    }
+
+    static foreach (rightClosed; [false, true])
+    {{
+        enum options = AxisOptions(rightClosed, true, true, true);
+        check(IntegralAxis!(size_t, double, options)(2, 1.0));
+        check(RegularAxis!(size_t, double, options)(2, 1.0, 9.0));
+        check(TransformAxis!(size_t, double, sqrt, square, options)(2, 1.0, 9.0));
+        check(VariableAxis!(size_t, double*, options)([1.0, 4.0, 9.0].sliced));
+    }}
+}
