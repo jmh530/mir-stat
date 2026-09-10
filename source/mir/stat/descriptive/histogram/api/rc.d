@@ -1389,30 +1389,34 @@ version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
 {
+    import std.meta: AliasSeq;
     import mir.ndslice.slice: sliced;
     import mir.ndslice.allocation: rcslice;
     import mir.stat.descriptive.histogram.axis: VariableAxis;
 
-    auto data = [0.0, 0.5, 1.5, 2.5, 3.5].sliced;
-    auto breaks = [0.0, 1.0, 3.0, 4.0].sliced;
-    alias Axis = VariableAxis!(size_t, double*, AxisOptions());
-    auto h = data.rchistogram!Axis(breaks);
-    assert(h.counts == [2u, 2u, 1u]);
-    static assert(is(typeof(h) == HistogramAccumulator!(Slice!(RCI!size_t), Axis)));
+    static foreach (CountType; AliasSeq!(size_t, uint))
+    {{
+        auto data = [0.0, 0.5, 1.5, 2.5, 3.5].sliced;
+        auto breaks = [0.0, 1.0, 3.0, 4.0].sliced;
+        alias Axis = VariableAxis!(CountType, double*, AxisOptions());
+        auto h = data.rchistogram!Axis(breaks);
+        assert(h.counts == [2u, 2u, 1u]);
+        static assert(is(typeof(h) == HistogramAccumulator!(Slice!(RCI!CountType), Axis)));
 
-    alias RcAxis = VariableAxis!(size_t, RCI!double, AxisOptions());
-    auto makeHistogram()
-    {
-        auto ownedBreaks = rcslice!double([0.0, 1.0, 3.0, 4.0]);
-        return data.rchistogram!RcAxis(ownedBreaks);
-    }
-    auto mixed = makeHistogram();
-    assert(mixed.counts == [2u, 2u, 1u]);
-    static assert(is(typeof(mixed) == HistogramAccumulator!(Slice!(RCI!size_t), RcAxis)));
-    // Break storage must survive the factory's local reference.
-    mixed.put(2.0);
-    assert(mixed.counts == [2u, 3u, 1u]);
-    assert(mixed.axis[0].bin(1).high == 3.0);
+        alias RcAxis = VariableAxis!(CountType, RCI!double, AxisOptions());
+        auto makeHistogram()
+        {
+            auto ownedBreaks = rcslice!double([0.0, 1.0, 3.0, 4.0]);
+            return data.rchistogram!RcAxis(ownedBreaks);
+        }
+        auto mixed = makeHistogram();
+        assert(mixed.counts == [2u, 2u, 1u]);
+        static assert(is(typeof(mixed) == HistogramAccumulator!(Slice!(RCI!CountType), RcAxis)));
+        // Break storage must survive the factory's local reference.
+        mixed.put(2.0);
+        assert(mixed.counts == [2u, 3u, 1u]);
+        assert(mixed.axis[0].bin(1).high == 3.0);
+    }}
 }
 
 // Other explicit-axis overloads use the same template-instance matching.

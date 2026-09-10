@@ -2712,7 +2712,8 @@ public:
                 }
             }
             import std.range: assumeSorted;
-            return _payload.assumeSorted!("a <= b").lowerBound(x).length - 1;
+            return cast(CountType)
+                (_payload.assumeSorted!("a <= b").lowerBound(x).length - 1);
         } else {
             static if (axisOptions.isCircular) {
                 if (x == low()) {
@@ -2720,7 +2721,8 @@ public:
                 }
             }
             import std.range: assumeSorted;
-            return _payload.assumeSorted!("a < b").lowerBound(x).length - 1;
+            return cast(CountType)
+                (_payload.assumeSorted!("a < b").lowerBound(x).length - 1);
         }
     }
 
@@ -2730,6 +2732,29 @@ public:
         assert(x < _payload.length - 1, "VariableAxis.bin: input must be less than the length of _payload minus one");
         return Bin!(Slice!(Iterator))(_payload.select!0(x, (x + 2)));
     }
+}
+
+// Variable-axis indices use CountType for both interval conventions.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+
+    auto breaks = [0.0, 1.0, 3.0, 4.0].sliced;
+    auto left = VariableAxis!(uint, double*, AxisOptions())(breaks);
+    static assert(is(typeof(left.index(0.5)) == uint));
+    assert(left.index(0.0) == 0u);
+    assert(left.index(1.0) == 1u);
+    assert(left.index(2.0) == 1u);
+    assert(left.index(3.0) == 2u);
+
+    auto right = VariableAxis!(uint, double*, AxisOptions(IsRightClosed(true)))(breaks);
+    static assert(is(typeof(right.index(0.5)) == uint));
+    assert(right.index(1.0) == 0u);
+    assert(right.index(2.0) == 1u);
+    assert(right.index(3.0) == 1u);
+    assert(right.index(4.0) == 2u);
 }
 
 /// Example
