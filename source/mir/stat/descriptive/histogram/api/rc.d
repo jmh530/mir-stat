@@ -296,6 +296,7 @@ Params:
 template rchistogram(Axis)
     if (isAxis!Axis)
 {
+    import std.traits: isInstanceOf;
     import mir.stat.descriptive.histogram.axis: IntegralAxis, RegularAxis,
         TransformAxis, EnumAxis, CategoryAxis, VariableAxis;
 
@@ -304,14 +305,13 @@ template rchistogram(Axis)
         slice = slice
         N_bin = number of bins
         low = the value of the smallest bin
-        axisOptions = options
     +/
     HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
         rchistogram(Iterator, size_t N, SliceKind kind, CountType, BinType)(
                    Slice!(Iterator, N, kind) slice,
                    CountType N_bin,
                    BinType low)
-        if (is(Axis == IntegralAxis))
+        if (isInstanceOf!(IntegralAxis, Axis))
     {
         import core.lifetime: move;
 
@@ -325,15 +325,14 @@ template rchistogram(Axis)
         N_bin = number of bins
         low = the value of the smallest bin
         high = the value of the largest bin
-        axisOptions = options
     +/
     HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
-        rchistogram(Iterator, size_t N, SliceKind kind, CountType, BinType, AxisOptions)(
+        rchistogram(Iterator, size_t N, SliceKind kind, CountType, BinType)(
                     Slice!(Iterator, N, kind) slice,
                     CountType N_bin,
                     BinType low,
                     BinType high)
-        if (is(Axis == RegularAxis) || is(Axis == TransformAxis))
+        if (isInstanceOf!(RegularAxis, Axis) || isInstanceOf!(TransformAxis, Axis))
     {
         import core.lifetime: move;
 
@@ -348,7 +347,7 @@ template rchistogram(Axis)
     HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
         rchistogram(Iterator, size_t N, SliceKind kind)(
                     Slice!(Iterator, N, kind) slice)
-        if (is(Axis == EnumAxis) || is(Axis == CategoryAxis))
+        if (isInstanceOf!(EnumAxis, Axis) || isInstanceOf!(CategoryAxis, Axis))
     {
         import core.lifetime: move;
 
@@ -362,10 +361,11 @@ template rchistogram(Axis)
         axisSlice = slice of axis breaks
     +/
     HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
-        rchistogram(size_t N, SliceKind kindA, SliceKind kindB)(
-                    Slice!(Iterator, N, kindA) dataSlice,
-                    Slice!(Iterator, 1, kindB) axisSlice)
-        if (__traits(isSame, Axis, VariableAxis))
+        rchistogram(DataIterator, AxisIterator, size_t N,
+                    SliceKind kindA, SliceKind kindB)(
+                    Slice!(DataIterator, N, kindA) dataSlice,
+                    Slice!(AxisIterator, 1, kindB) axisSlice)
+        if (isInstanceOf!(VariableAxis, Axis))
     {
         import core.lifetime: move;
 
@@ -1341,4 +1341,101 @@ unittest
     auto vAxis = variableAxis(breaks);
     auto h2 = x.rchistogram(vAxis);
     assert(h2.counts == result);
+}
+
+// Explicit regular-axis types preserve their counter type and flow options.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.axis: RegularAxis, EnableOverflow;
+
+    alias Axis = RegularAxis!(uint, double, AxisOptions());
+    auto data = [0.0, 1, 4, 5, 6, 9, 10, 13, 14].sliced;
+    auto h = data.rchistogram!Axis(3u, 0.0, 15.0);
+    assert(h.counts == [3u, 3u, 3u]);
+    static assert(is(typeof(h) == HistogramAccumulator!(Slice!(RCI!uint), Axis)));
+
+    alias OverflowAxis = RegularAxis!(uint, double, AxisOptions(EnableOverflow(true)));
+    auto withOverflow = [1.0, 6.0, 11.0, 20.0].sliced;
+    auto flow = withOverflow.rchistogram!OverflowAxis(3u, 0.0, 15.0);
+    assert(flow.counts == [1u, 1u, 1u]);
+    assert(flow.overflow == 1);
+    static assert(is(flow.CountType == uint));
+}
+
+// Explicit transform-axis types retain the custom transform and inverse.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.axis: TransformAxis;
+
+    static double transform(double x) { return x * x; }
+    static double inverse(double x) { import mir.math.common: sqrt; return sqrt(x); }
+
+    alias Axis = TransformAxis!(uint, double, transform, inverse, AxisOptions());
+    auto data = [0.5, 1.0, 2.5, 3.5].sliced;
+    auto h = data.rchistogram!Axis(4u, 0.0, 4.0);
+    assert(h.counts == [2u, 1u, 0u, 1u]);
+    assert(h.axis[0].bin(0).high == 2.0);
+    static assert(is(typeof(h) == HistogramAccumulator!(Slice!(RCI!uint), Axis)));
+}
+
+// Explicit variable-axis types accept identical and different iterator types.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: VariableAxis;
+
+    auto data = [0.0, 0.5, 1.5, 2.5, 3.5].sliced;
+    auto breaks = [0.0, 1.0, 3.0, 4.0].sliced;
+    alias Axis = VariableAxis!(size_t, double*, AxisOptions());
+    auto h = data.rchistogram!Axis(breaks);
+    assert(h.counts == [2u, 2u, 1u]);
+    static assert(is(typeof(h) == HistogramAccumulator!(Slice!(RCI!size_t), Axis)));
+
+    alias RcAxis = VariableAxis!(size_t, RCI!double, AxisOptions());
+    auto makeHistogram()
+    {
+        auto ownedBreaks = rcslice!double([0.0, 1.0, 3.0, 4.0]);
+        return data.rchistogram!RcAxis(ownedBreaks);
+    }
+    auto mixed = makeHistogram();
+    assert(mixed.counts == [2u, 2u, 1u]);
+    static assert(is(typeof(mixed) == HistogramAccumulator!(Slice!(RCI!size_t), RcAxis)));
+    // Break storage must survive the factory's local reference.
+    mixed.put(2.0);
+    assert(mixed.counts == [2u, 3u, 1u]);
+    assert(mixed.axis[0].bin(1).high == 3.0);
+}
+
+// Other explicit-axis overloads use the same template-instance matching.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, EnumAxis, CategoryAxis;
+
+    alias Integral = IntegralAxis!(uint, double, AxisOptions());
+    auto h = [0.0, 0.5, 1.5].sliced.rchistogram!Integral(2u, 0.0);
+    assert(h.counts == [2u, 1u]);
+    static assert(is(h.CountType == uint));
+
+    enum Label { first, second }
+    auto labels = [Label.first, Label.second, Label.second].sliced;
+    alias Enumerated = EnumAxis!(uint, Label);
+    alias Categorized = CategoryAxis!(uint, Label, AxisOptions());
+    auto e = labels.rchistogram!Enumerated();
+    auto c = labels.rchistogram!Categorized();
+    assert(e.counts == [1u, 2u]);
+    assert(c.counts == [1u, 2u]);
+    static assert(is(e.CountType == uint));
+    static assert(is(c.CountType == uint));
 }
