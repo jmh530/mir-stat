@@ -18,6 +18,7 @@ T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 
 module mir.stat.descriptive.histogram.frequency;
 
+import mir.internal.utility: isFloatingPoint;
 import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
 import mir.stat.descriptive.histogram.traits: isAxis;
 
@@ -32,11 +33,12 @@ semantics: callers must not modify backing storage through external aliases or
 independently mutate copies of this wrapper that share storage. Counter types
 must be large enough for both bin counts and the total.
 
-Relative-frequency output is not implemented yet.
+Relative frequencies divide by the total, including flow counts. The output
+defaults to double and can be selected independently on each accessor. An empty
+accumulator returns NaNs; an unoccupied bin in a nonempty accumulator returns zero.
 
 Params:
     Storage = storage for ordinary bin counts, as in $(LREF HistogramAccumulator)
-    FrequencyType = reserved output type for future relative-frequency access
     AxisType = type of the single histogram axis
 
 See_also:
@@ -49,7 +51,7 @@ See_also:
     $(LREF CategoryAxis),
     $(LREF VariableAxis)
 +/
-struct FrequencyAccumulator(Storage, FrequencyType, AxisType)
+struct FrequencyAccumulator(Storage, AxisType)
     if (isAxis!AxisType)
 {
     import std.traits: isIterable, isSomeString;
@@ -90,6 +92,32 @@ struct FrequencyAccumulator(Storage, FrequencyType, AxisType)
         return histogramAccumulator.counts;
     }
 
+    /++
+    Relative frequency of an ordinary bin.
+
+    The denominator includes enabled underflow and overflow counts.
+    Returns `FrequencyType.nan` when the total count is zero.
+
+    Params:
+        FrequencyType = floating-point output type; defaults to double
+        index = ordinary bin index, less than counts.length
+    +/
+    FrequencyType frequency(FrequencyType = double)(size_t index) const
+        if (isFloatingPoint!FrequencyType)
+    {
+        assert(index < histogramAccumulator.counts.length,
+            "FrequencyAccumulator.frequency: index is out of range");
+        return relativeFrequency!FrequencyType(histogramAccumulator.counts[index]);
+    }
+
+    private FrequencyType relativeFrequency(FrequencyType)(CountType value) const
+        if (isFloatingPoint!FrequencyType)
+    {
+        if (total == 0)
+            return FrequencyType.nan;
+        return cast(FrequencyType) value / cast(FrequencyType) total;
+    }
+
     /// Read-only access to the axis.
     ref const(AxisType) axis() const @property
     {
@@ -100,12 +128,38 @@ struct FrequencyAccumulator(Storage, FrequencyType, AxisType)
     {
         /// Recorded overflow observations.
         CountType overflow()() { return histogramAccumulator.overflow; }
+
+        /++
+        Relative frequency of overflow observations.
+        Returns `FrequencyType.nan` when the total count is zero.
+
+        Params:
+            FrequencyType = floating-point output type; defaults to double
+        +/
+        FrequencyType overflowFrequency(FrequencyType = double)()
+            if (isFloatingPoint!FrequencyType)
+        {
+            return relativeFrequency!FrequencyType(overflow);
+        }
     }
 
     static if (includeUnderflow!AxisType)
     {
         /// Recorded underflow observations.
         CountType underflow()() { return histogramAccumulator.underflow; }
+
+        /++
+        Relative frequency of underflow observations.
+        Returns `FrequencyType.nan` when the total count is zero.
+
+        Params:
+            FrequencyType = floating-point output type; defaults to double
+        +/
+        FrequencyType underflowFrequency(FrequencyType = double)()
+            if (isFloatingPoint!FrequencyType)
+        {
+            return relativeFrequency!FrequencyType(underflow);
+        }
     }
 
     /// Record an iterable of observations, preserving the total after each put.
@@ -135,7 +189,7 @@ struct FrequencyAccumulator(Storage, FrequencyType, AxisType)
     }
 }
 
-/// Collect observations while maintaining a total alongside the bin counts.
+/// Collect observations, inspect counts, and read relative frequencies.
 version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
@@ -143,7 +197,7 @@ unittest
     import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
 
     alias Axis = IntegralAxis!(uint, double, AxisOptions());
-    auto f = FrequencyAccumulator!(uint[], double, Axis)([0u, 0u, 0u], Axis(3, 0.0));
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u, 0u], Axis(3, 0.0));
     assert(f.count == 0);
 
     // Bins are [0, 1), [1, 2), and [2, 3).
@@ -151,9 +205,31 @@ unittest
     f.put([1.0, 1.5, 2.5]);
     assert(f.counts == [1u, 2u, 1u]);
     assert(f.count == 4);
+
+    // Frequencies default to double and divide each bin count by the total.
+    assert(f.frequency(0) == 0.25);
+    assert(f.frequency(1) == 0.5);
+    assert(f.frequency(2) == 0.25);
 }
 
-/// The total includes observations recorded in enabled flow bins.
+/// Choose the frequency output type without changing the accumulator.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u], Axis(2, 0.0));
+    f.put([0.5, 1.5]);
+
+    double frequency = f.frequency(0);
+    float floatFrequency = f.frequency!float(0);
+    assert(frequency == 0.5);
+    assert(floatFrequency == 0.5f);
+}
+
+/// Enabled flow bins contribute to the total used by all frequencies.
 version(mir_stat_test_hist)
 @safe pure nothrow
 unittest
@@ -163,12 +239,35 @@ unittest
 
     alias Axis = IntegralAxis!(uint, double,
         AxisOptions(EnableOverflow(true), EnableUnderflow(true)));
-    auto f = FrequencyAccumulator!(uint[], double, Axis)([0u, 0u], Axis(2, 0.0));
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u], Axis(2, 0.0));
     f.put([-1.0, 0.5, 1.5, 3.0]);
     assert(f.counts == [1u, 1u]);
     assert(f.underflow == 1);
     assert(f.overflow == 1);
     assert(f.count == 4);
+
+    assert(f.frequency(0) == 0.25);
+    assert(f.frequency(1) == 0.25);
+    assert(f.underflowFrequency == 0.25);
+    assert(f.overflowFrequency == 0.25);
+}
+
+/// Empty accumulators return NaN; unoccupied bins in nonempty ones return zero.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import std.math: isNaN;
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u], Axis(2, 0.0));
+    assert(isNaN(f.frequency(0)));
+    assert(isNaN(f.frequency(1)));
+
+    f.put(0.5);
+    assert(f.frequency(0) == 1.0);
+    assert(f.frequency(1) == 0.0);
 }
 
 /// Initialize from existing reference-counted storage and merge another total.
@@ -181,7 +280,7 @@ unittest
 
     alias Axis = IntegralAxis!(uint, double, AxisOptions());
     auto counts = rcslice!uint([2u, 1u]);
-    alias F = FrequencyAccumulator!(typeof(counts), double, Axis);
+    alias F = FrequencyAccumulator!(typeof(counts), Axis);
     auto f = F(counts, Axis(2, 0.0));
     assert(f.count == 3);
 
@@ -192,6 +291,10 @@ unittest
     assert(f.counts == [3u, 2u]);
     assert(f.count == 5);
     assert(other.count == 2);
+
+    // Frequencies use the combined counts and total.
+    assert(f.frequency(0) == 0.6);
+    assert(f.frequency(1) == 0.4);
 }
 
 // Construction, insertion, and merging with array and reference-counted storage.
@@ -207,7 +310,7 @@ unittest
 
     void check(Storage)(Storage counts, Storage otherCounts)
     {
-        alias F = FrequencyAccumulator!(Storage, double, Axis);
+        alias F = FrequencyAccumulator!(Storage, Axis);
         auto axis = Axis(3, 0.0);
         auto f = F(counts, axis);
         static assert(is(f.CountType == uint));
@@ -265,7 +368,7 @@ unittest
     import std.range: only;
 
     alias Axis = IntegralAxis!(size_t, double, AxisOptions());
-    auto f = FrequencyAccumulator!(size_t[], double, Axis)([0UL, 0], Axis(2, 0.0));
+    auto f = FrequencyAccumulator!(size_t[], Axis)([0UL, 0], Axis(2, 0.0));
     static assert(!__traits(hasMember, typeof(f), "overflow"));
     static assert(!__traits(hasMember, typeof(f), "underflow"));
     f.put(only(0.5, 1.5, 1.75));
@@ -273,7 +376,7 @@ unittest
 
     enum Label { first, second }
     alias Categories = CategoryAxis!(uint, Label, AxisOptions(EnableOverflow(true)));
-    auto c = FrequencyAccumulator!(uint[], double, Categories)([0u, 0u], Categories());
+    auto c = FrequencyAccumulator!(uint[], Categories)([0u, 0u], Categories());
     c.put("first");
     c.put(["second", "unknown"]);
     c.put(Label.second);
@@ -290,7 +393,7 @@ unittest
     import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
 
     alias Axis = IntegralAxis!(uint, double, AxisOptions());
-    alias F = FrequencyAccumulator!(uint[], double, Axis);
+    alias F = FrequencyAccumulator!(uint[], Axis);
     auto f = F([0u, 0u], Axis(2, 0.0));
     assertThrown!AssertError(f.put(3.0));
     assert(f.count == 0 && f.counts == [0u, 0u]);
@@ -317,7 +420,7 @@ unittest
         bool isUnderflow(int x) const { return x < 0; }
         bool isOverflow(int x) const { return x > 0; }
     }
-    alias F = FrequencyAccumulator!(uint[], double, Axis);
+    alias F = FrequencyAccumulator!(uint[], Axis);
     auto f = F([0u], Axis());
     auto other = F([0u], Axis());
     f.put([0, -1]);
@@ -331,4 +434,88 @@ unittest
     assert(f.counts == [4u]);
     assert(f.underflow == 2 && f.overflow == 4);
     assert(f.count == 10);
+}
+
+// Frequencies use current totals, including flows, for all supported output types.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: isNaN;
+    import mir.math.common: approxEqual;
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions(false, true, true));
+    void check(Storage)(Storage emptyCounts, Storage populatedCounts)
+    {
+        alias F = FrequencyAccumulator!(Storage, Axis);
+        auto f = F(emptyCounts, Axis(3, 0.0));
+        static assert(is(typeof(f.overflowFrequency()) == double));
+        static assert(is(typeof(f.underflowFrequency()) == double));
+        static assert(!__traits(compiles, f.frequency!uint(0)));
+        static assert(!__traits(compiles, f.overflowFrequency!uint()));
+        static assert(!__traits(compiles, f.underflowFrequency!uint()));
+
+        static foreach (T; AliasSeq!(float, double, real))
+        {
+            static assert(is(typeof(f.frequency!T(0)) == T));
+            static assert(is(typeof(f.overflowFrequency!T()) == T));
+            static assert(is(typeof(f.underflowFrequency!T()) == T));
+            foreach (i; 0 .. 3)
+                assert(isNaN(f.frequency!T(i)));
+            assert(isNaN(f.overflowFrequency!T()));
+            assert(isNaN(f.underflowFrequency!T()));
+        }
+
+        f.put(0.5);
+        assert(f.frequency(0) == 1.0);
+        assert(f.frequency(1) == 0.0);
+        assert(f.overflowFrequency == 0.0 && f.underflowFrequency == 0.0);
+        f.put([-1.0, 0.75, 4.0]);
+        static foreach (T; AliasSeq!(float, double, real))
+        {
+            assert(f.frequency!T(0) == 0.5);
+            assert(f.frequency!T(1) == 0.0);
+            assert(f.overflowFrequency!T() == 0.25);
+            assert(f.underflowFrequency!T() == 0.25);
+        }
+
+        auto other = F(populatedCounts, Axis(3, 0.0));
+        assert(other.frequency(1) == 1.0);
+        assert(other.overflowFrequency == 0.0);
+        f.put(other);
+        static foreach (T; AliasSeq!(float, double, real))
+        {
+            assert(f.frequency!T(0).approxEqual(cast(T) 1 / 3));
+            assert(f.frequency!T(1).approxEqual(cast(T) 1 / 3));
+            assert(f.overflowFrequency!T().approxEqual(cast(T) 1 / 6));
+            assert(f.underflowFrequency!T().approxEqual(cast(T) 1 / 6));
+        }
+        // Reading frequencies does not mutate either counts or the total.
+        assert(f.count == 6 && f.counts == [2u, 2u, 0u]);
+        assert(f.underflow == 1 && f.overflow == 1);
+    }
+    check([0u, 0u, 0u], [0u, 2u, 0u]);
+    check(rcslice!uint([0u, 0u, 0u]), rcslice!uint([0u, 2u, 0u]));
+}
+
+// Invalid bin indices remain errors even when the total is zero.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u], Axis(2, 0.0));
+    static assert(!__traits(hasMember, typeof(f), "overflowFrequency"));
+    static assert(!__traits(hasMember, typeof(f), "underflowFrequency"));
+    assertThrown!AssertError(f.frequency(2));
+    assertThrown!AssertError(f.frequency(size_t.max));
+    f.put(0.5);
+    assertThrown!AssertError(f.frequency(2));
+    assert(f.count == 1);
 }
