@@ -18,33 +18,24 @@ public import mir.stat.descriptive.histogram.axis;
 public import mir.stat.descriptive.histogram.traits;
 public import mir.stat.descriptive.histogram.api;
 
-//date: 5/31/2021
-// rchistogram only allows break function passed directly to axis, not rcHistogram
-
-//date: 6/10/2021
-// doing some work with multiple axes
-// got stuck b/c CountType checks Storage with DeepElementType.
-
-//later TODOs
-//see if it is possible to get multiple axis working?
-//use binarySearch for search instead of loop for variable
-//provide frequency
-//provide cumulative frequency function
-
-//frequency can be implemented separately from histogram by handling counts in that
-
-// 11/12/2020
-// Priorities: 
-// 1) a) Add slice functions to histogram
-//    b) Add range interface to histogram
-// 2) A way to convert the results to string that Ilya will be happy with
-// 3) Multi-axis histograms
-// 4) Historgram with GC version, makeHistogram to handle any allocation strategy
-
-// Not part of MVP
-// 1) Make Storage able handle other ways to count, such as  MeanAccumulator, like dense_storage for boost histogram
-// 2) FrequencyAccumulator/Frequency/CumFrequency
-// 3) weighted histogram/frequency
-// 4) Replace phobos in VariableAxis
-// 5) Better count type (can increase itself)
-
+// TODO: Histogram result access
+// - Add read-only range/view and slicing APIs for bins, counts, and frequencies.
+// - Add cumulative frequency support.
+// - Add histogram formatting.
+//
+// TODO: Construction conveniences
+// - Accept break functions directly in rchistogram; currently callers construct
+//   an axis with the break function and pass that axis to rchistogram.
+// - Add factories for GC-backed storage and caller-selected allocation strategies.
+//
+// TODO: Multidimensional histograms
+// - Define joint-bin storage and indexing. The current multiple-axis path records
+//   separate marginal counts for each axis.
+// - Validate storage shape against the axes and support joint flow bins and merging.
+//
+// Possible later extensions
+// - Support per-bin accumulators, such as MeanAccumulator.
+// - Add weighted histograms and frequencies.
+// - Add counters that widen dynamically when their current representation fills.
+// - Replace the Phobos sorted-range dependency in VariableAxis with a Mir
+//   equivalent; VariableAxis already uses a binary-search-based lookup.
