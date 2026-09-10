@@ -232,8 +232,6 @@ public:
     ///
     void put(HistogramAccumulator!(Storage, Axis) h)
     {
-        import mir.stat.descriptive.histogram.traits: hasAxisOptions;
-
         assert(axis == h.axis);
         static if (Axis.length == 1) {
             counts[] += h.counts[];
@@ -244,15 +242,15 @@ public:
         } else {
             static assert(0, "HistogramAccumulator.put: three-dimensional HistogramAccumulator not supported yet");
         }
-        static if (hasAxisOptions!(Axis[0])) {
-            static if (Axis[0].options.enableOverflow && hasMember!(typeof(h), "overflowStorage")) {
+        static if (anySatisfy!(includeOverflow, Axis) || anySatisfy!(includeUnderflow, Axis)) {
+            static if (anySatisfy!(includeOverflow, Axis)) {
                 static if (N == 1) {
                     overflowStorage.storage += h.overflowStorage.storage;
                 } else {
                     overflowStorage.storage[] += h.overflowStorage.storage[];
                 }
             }
-            static if (Axis[0].options.enableUnderflow && hasMember!(typeof(h), "underflowStorage")) {
+            static if (anySatisfy!(includeUnderflow, Axis)) {
                 static if (N == 1) {
                     underflowStorage.storage += h.underflowStorage.storage;
                 } else {
