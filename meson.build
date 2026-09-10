@@ -31,6 +31,7 @@ sources_list = [
     'mir/stat/descriptive/histogram/traits',
     'mir/stat/descriptive/histogram/accumulator',
     'mir/stat/descriptive/histogram/frequency',
+    'mir/stat/descriptive/histogram/view',
     'mir/stat/descriptive/histogram/package',
     'mir/stat/descriptive/histogram/api/rc',
     'mir/stat/descriptive/histogram/api/package',

@@ -2732,6 +2732,14 @@ public:
         assert(x < _payload.length - 1, "VariableAxis.bin: input must be less than the length of _payload minus one");
         return Bin!(Slice!(Iterator))(_payload.select!0(x, (x + 2)));
     }
+
+    /// ditto
+    auto bin()(size_t x) const
+    {
+        assert(x < _payload.length - 1, "VariableAxis.bin: input must be less than the length of _payload minus one");
+        auto bounds = _payload.lightConst.select!0(x, x + 2);
+        return Bin!(typeof(bounds))(bounds);
+    }
 }
 
 // Variable-axis indices use CountType for both interval conventions.

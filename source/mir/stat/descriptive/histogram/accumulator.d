@@ -19,6 +19,7 @@ module mir.stat.descriptive.histogram.accumulator;
 
 import mir.primitives: DeepElementType;
 import mir.stat.descriptive.histogram.traits: isAxis;
+import mir.stat.descriptive.histogram.view: HistogramBinView, supportsBinView;
 import std.meta: allSatisfy;
 import std.traits: isNumeric;
 
@@ -138,6 +139,25 @@ public:
 
     ///
     Storage counts;
+
+    /++
+    Read-only random-access view of the ordinary bins and their counts.
+
+    The view copies the axis and storage handles, sharing the count buffer.
+    Subsequent count updates are visible when an element is read. Replacing
+    this accumulator's axis or storage does not redirect an existing view.
+    Keep shared axis boundaries and the storage shape unchanged while using it.
+
+    Available for one axis with const bin-description access and supported
+    one-dimensional storage. Underflow and overflow are excluded.
+
+    See_also: $(LREF HistogramBinView)
+    +/
+    auto bins()()
+        if (N == 1 && supportsBinView!(Storage, Axis[0]))
+    {
+        return HistogramBinView!(Storage, Axis[0])(counts, axis[0]);
+    }
 
     //
     enum N = Axis.length;
