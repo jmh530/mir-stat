@@ -274,7 +274,7 @@ struct FrequencyAccumulator(Storage, AxisType)
     static if (includeOverflow!AxisType)
     {
         /// Recorded overflow observations.
-        CountType overflow()() { return histogramAccumulator.overflow; }
+        CountType overflow()() const { return histogramAccumulator.overflow; }
 
         /++
         Relative frequency of overflow observations.
@@ -283,7 +283,7 @@ struct FrequencyAccumulator(Storage, AxisType)
         Params:
             FrequencyType = floating-point output type; defaults to double
         +/
-        FrequencyType overflowFrequency(FrequencyType = double)()
+        FrequencyType overflowFrequency(FrequencyType = double)() const
             if (isFloatingPoint!FrequencyType)
         {
             return relativeFrequency!FrequencyType(overflow);
@@ -293,7 +293,7 @@ struct FrequencyAccumulator(Storage, AxisType)
     static if (includeUnderflow!AxisType)
     {
         /// Recorded underflow observations.
-        CountType underflow()() { return histogramAccumulator.underflow; }
+        CountType underflow()() const { return histogramAccumulator.underflow; }
 
         /++
         Relative frequency of underflow observations.
@@ -302,7 +302,7 @@ struct FrequencyAccumulator(Storage, AxisType)
         Params:
             FrequencyType = floating-point output type; defaults to double
         +/
-        FrequencyType underflowFrequency(FrequencyType = double)()
+        FrequencyType underflowFrequency(FrequencyType = double)() const
             if (isFloatingPoint!FrequencyType)
         {
             return relativeFrequency!FrequencyType(underflow);
@@ -1498,6 +1498,72 @@ version(mir_stat_test_hist_lifetime)
             auto entry = bins.front;
         }));
     }
+}
+
+// Frequency reads, merges, and owning cumulative snapshots remain @nogc.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    static immutable uint[2] zero = [0, 0];
+    static immutable double[4] samples = [-1.0, 0.5, 1.5, 3.0];
+    alias A = IntegralAxis!(uint, double, AxisOptions(false, true, true));
+    auto counts = rcslice!uint(zero[]);
+    alias F = FrequencyAccumulator!(typeof(counts), A);
+    auto f = F(counts, A(2, 0.0));
+    f.put(samples[]);
+    auto other = F(rcslice!uint(zero[]), A(2, 0.0));
+    other.put(samples[]);
+    f.put(other);
+    void read(ref const F source) @safe pure nothrow @nogc
+    {
+        assert(source.count == 8);
+        assert(source.underflow == 2 && source.overflow == 2);
+        assert(source.underflowFrequency!float() == 0.25f);
+        assert(source.overflowFrequency!real() == 0.25L);
+        assert(source.frequency(0) == 0.25);
+        assert(source.cumulativeFrequency(1) == 0.75);
+        auto snapshot = source.cumulativeFrequencies();
+        assert(snapshot[0] == 0.5 && snapshot[1] == 0.75);
+        double[2] output;
+        source.cumulativeFrequencies(output[]);
+        assert(output[0] == snapshot[0] && output[1] == snapshot[1]);
+    }
+    read(f);
+}
+
+// Borrowed-view traversal is @nogc with either compiler escape-checking mode.
+version(mir_stat_test_hist)
+@nogc unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    static immutable uint[2] initial = [1, 1];
+    // Infer safety so the same test is @safe with escape checking and @system
+    // without it; neither version may introduce GC allocation.
+    auto exercise = () @nogc {
+        alias A = IntegralAxis!(uint, double, AxisOptions());
+        auto counts = rcslice!uint(initial[]);
+        auto f = FrequencyAccumulator!(typeof(counts), A)(counts, A(2, 0.0));
+        auto view = f.frequencyBins();
+        auto saved = view.save;
+        auto tail = view[1 .. 2];
+        view.popFront(); saved.popBack();
+        assert(view.front.frequency == 0.5 && saved.back.frequency == 0.5);
+        f.put(1.5);
+        assert(tail.front.frequency == 2.0 / 3.0);
+        tail.popFront();
+        assert(tail.empty);
+    };
+    static if (hasBorrowEscapeChecking)
+    {
+        scope auto runSafe = () @safe @nogc { exercise(); };
+        runSafe();
+    }
+    else
+        exercise();
 }
 
 // Variadic frequency insertion validates every type and counts every observation.

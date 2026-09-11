@@ -536,3 +536,17 @@ unittest
     auto k = x.freedmanDiaconis!size_t;
     assert(k == ((7.0 - 0.0) / 3.5));
 }
+
+// Break selection can use reference-counted working storage without the GC.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    static immutable double[8] data = [0, 1, 2, 3, 4, 5, 6, 7];
+    auto values = rcslice!double(data[]);
+    assert(sturges(values) == 4);
+    assert(binsFromWidth!uint(values, 2.0) == 4);
+    assert(scott(values) > 0);
+    assert(freedmanDiaconis(values) > 0);
+}

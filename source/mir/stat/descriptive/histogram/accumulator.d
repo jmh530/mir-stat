@@ -1451,3 +1451,46 @@ unittest
     assertThrown!AssertError(M([[0UL, 0UL]], axis, axis));
     assertThrown!AssertError(M([[0UL, 0UL], [0UL]], axis, axis));
 }
+
+// Construction, insertion, merging, and view traversal need no GC allocation.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, CategoryAxis, AxisOptions;
+    static immutable uint[2] zero = [0, 0];
+    static immutable double[4] samples = [-1.0, 0.5, 1.5, 3.0];
+    alias A = IntegralAxis!(uint, double, AxisOptions(false, true, true));
+    auto counts = rcslice!uint(zero[]);
+    alias H = HistogramAccumulator!(typeof(counts), A);
+    auto h = H(counts, A(2, 0.0));
+    h.put(samples[]);
+    auto other = H(rcslice!uint(zero[]), A(2, 0.0));
+    other.put(0.5);
+    h.put(other);
+    assert(h.counts[0] == 2 && h.counts[1] == 1);
+    assert(h.underflow == 1 && h.overflow == 1);
+    auto view = h.bins();
+    auto saved = view.save;
+    auto tail = view[1 .. 2];
+    view.popFront(); saved.popBack();
+    assert(view.front.count == 1 && saved.back.count == 2);
+    assert(tail.front.index == 1);
+    tail.popFront();
+    assert(tail.empty);
+
+    // Enum and string category insertion are also usable without the GC.
+    enum Label { first, second }
+    alias C = CategoryAxis!(uint, Label, AxisOptions());
+    auto category = HistogramAccumulator!(typeof(counts), C)(rcslice!uint(zero[]), C());
+    category.put(Label.second);
+    assert(category.bins.back.count == 1);
+    category.put("first");
+    assert(category.bins.front.count == 1);
+    alias FlowCategory = CategoryAxis!(uint, Label, AxisOptions(false, true));
+    auto withFlow = HistogramAccumulator!(typeof(counts), FlowCategory)(
+        rcslice!uint(zero[]), FlowCategory());
+    withFlow.put("unknown");
+    assert(withFlow.overflow == 1);
+}
