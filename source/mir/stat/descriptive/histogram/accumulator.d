@@ -150,10 +150,12 @@ public:
 
     Available for one axis with const bin-description access and supported
     one-dimensional storage. Underflow and overflow are excluded.
+    Mutable and const histograms both return a view with a mutable cursor over
+    read-only data. Custom axes must support mir.qualifier.lightConst.
 
     See_also: $(LREF HistogramBinView)
     +/
-    auto bins()()
+    auto bins()() const
         if (N == 1 && supportsBinView!(Storage, Axis[0]))
     {
         return HistogramBinView!(Storage, Axis[0])(counts, axis[0]);

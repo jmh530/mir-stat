@@ -2658,6 +2658,17 @@ public:
         _payload = slice;
     }
 
+    /++
+    Copy the axis handle with read-only access to its break values.
+    Reference-counted iterators retain ownership; borrowed iterators stay borrowed.
+    +/
+    auto lightConst()() const @property
+    {
+        import mir.qualifier: LightConstOf;
+        return VariableAxis!(CountType, LightConstOf!Iterator, axisOptions)(
+            _payload.lightConst);
+    }
+
     ///
     CountType N_bin()() const
     {
