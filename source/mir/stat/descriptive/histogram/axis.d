@@ -737,6 +737,72 @@ unittest
     assert(y.N_bin == 4);
 }
 
+// Boundary descriptions and lookup share a single rounded grid. Keep the
+// original observation for comparison: normalization may lose its distance
+// from an edge. These helpers do not allocate or retain the axis.
+private bool hasStrictBoundaries(Axis)(scope ref const Axis axis)
+{
+    auto previous = axis.boundary(0);
+    const n = cast(size_t) axis.N_bin;
+    for (size_t i = 0; i < n; ++i)
+    {
+        auto next = axis.boundary(i + 1);
+        if (!(previous < next))
+            return false;
+        previous = next;
+    }
+    return true;
+}
+
+private size_t locateBoundaryBin(bool rightClosed, Axis, Value, Scaled)(
+    scope ref const Axis axis, Value x, Scaled scaled)
+{
+    import mir.math.common: floor;
+
+    const n = cast(size_t) axis.N_bin;
+    size_t candidate;
+    if (scaled >= n)
+        candidate = n - 1;
+    else if (scaled > 0) // Zero, negative, or NaN estimates fall back from bin zero.
+    {
+        candidate = cast(size_t) floor(scaled);
+        static if (rightClosed)
+            if (scaled == candidate)
+                --candidate;
+    }
+    auto lower = axis.boundary(candidate);
+    auto upper = axis.boundary(candidate + 1);
+    static if (rightClosed)
+    {
+        if (lower < x && x <= upper)
+            return candidate;
+    }
+    else
+    {
+        if (lower <= x && x < upper)
+            return candidate;
+    }
+
+    // A fixed one-bin adjustment is insufficient when arithmetic loses several
+    // boundary distinctions. Search for the first upper edge containing x.
+    size_t first = 0, last = n;
+    while (first < last)
+    {
+        const middle = first + (last - first) / 2;
+        auto edge = axis.boundary(middle + 1);
+        static if (rightClosed)
+            const contains = x <= edge;
+        else
+            const contains = x < edge;
+        if (contains)
+            last = middle;
+        else
+            first = middle + 1;
+    }
+    assert(first < n, "Axis.index: no bin contains the observation");
+    return first;
+}
+
 /++
 Axis for an interval of values with equal width steps.
 
@@ -775,13 +841,48 @@ public:
     ///
     alias options = axisOptions;
 
-    ///
+    /++
+    Construct a positive number of equal-width bins. The upper bound must
+    exceed the lower bound; floating-point bounds and their width must be finite.
+    Adjacent rounded boundaries must be strictly increasing. Assertion-enabled
+    construction checks all bins in O(N_bin) time without allocating storage.
+    +/
     this(CountType N_bin, BinType low, BinType high)
     {
+        assert(N_bin > 0, "RegularAxis.this: N_bin must be positive");
         assert(high > low, "RegularAxis.this: high must be greater than low");
+        import mir.internal.utility: isFloatingPoint;
+        static if (isFloatingPoint!BinType)
+        {
+            import std.math: isFinite;
+            assert(isFinite(low) && isFinite(high) && isFinite(high - low),
+                "RegularAxis.this: bounds and width must be finite");
+        }
         _N_bin = N_bin;
         _low = low;
         _high = high;
+        assert(hasStrictBoundaries(this),
+            "RegularAxis.this: adjacent boundaries must be strictly increasing");
+    }
+
+    // Preserve exact endpoints. Form the fraction before multiplying so a tiny
+    // step need not be rounded to zero first. Use ordinary floating-point
+    // evaluation here, without the fmamath contraction annotation.
+    private BinType boundary()(size_t i) const
+    {
+        if (i == 0)
+            return _low;
+        if (i == _N_bin)
+            return _high;
+        import mir.internal.utility: isFloatingPoint;
+        static if (isFloatingPoint!BinType)
+        {
+            const BinType fraction = cast(BinType) i / cast(BinType) _N_bin;
+            const BinType offset = (_high - _low) * fraction;
+            return _low + offset;
+        }
+        else
+            return _low + cast(BinType) i * stepSize();
     }
 
     ///
@@ -824,7 +925,7 @@ public:
         }
     }
 
-    ///
+    /// Nominal width; use bin for actual rounded boundaries.
     @fmamath BinType stepSize()() const
     {
         return (_high - _low) / (cast(BinType) _N_bin);
@@ -836,44 +937,55 @@ public:
         return (x - _low) / (_high - _low);
     }
 
-    ///
-    @fmamath CountType index()(BinType x) const
+    /++
+    Index using the same rounded boundaries returned by bin.
+    Normalization supplies a candidate; the original observation is checked
+    against its edges. A mismatch uses an O(log N_bin) boundary search.
+    +/
+    CountType index()(BinType x) const
     {
         import mir.stat.descriptive.histogram.traits: checkOverUnderFlow;
-
         checkOverUnderFlow!(BinType, axisOptions)(x, _low, _high);
 
-        import mir.math.common: floor;
-        static if (!axisOptions.isRightClosed) {
-            static if (axisOptions.isCircular) {
-                if (x == _high) {
-                    return cast(CountType) 0;
-                }
+        static if (axisOptions.isCircular)
+        {
+            static if (axisOptions.isRightClosed)
+            {
+                if (x == _low)
+                    return _N_bin - 1;
             }
-            return cast(CountType) floor(_N_bin * this.value(x));
-        } else {
-            static if (axisOptions.isCircular) {
-                if (x == _low) {
-                    return cast(CountType) (_N_bin - 1);
-                }
-            }
-            BinType binValue = _N_bin * this.value(x);
-            CountType output = cast(CountType) floor(binValue);
-            // If binValue equals the floor of the binValue, then it is on integer, adjust for closed
-            if (binValue != output) {
-                return output;
-            } else {
-                return output - 1;
-            }
+            else if (x == _high)
+                return 0;
         }
+        return cast(CountType) locateBoundaryBin!(axisOptions.isRightClosed())(
+            this, x, _N_bin * this.value(x));
     }
 
     ///
-    @fmamath Bin!BinType bin()(size_t x) const
+    Bin!BinType bin()(size_t x) const
     {
         assert(x < N_bin, "RegularAxis.bin: input must be less than N_bin");
-        return Bin!(BinType)(_low + x * stepSize(), _low + x * stepSize() + stepSize());
+        return Bin!(BinType)(boundary(x), boundary(x + 1));
     }
+}
+
+/// Shared boundaries determine membership even when normalization loses precision.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.math: nextDown, nextUp;
+    auto axis = RegularAxis!(uint, double, AxisOptions())(2, -1.0, 1.0);
+
+    // Both descriptions use exactly the same shared edge, at zero.
+    assert(axis.bin(0).high == axis.bin(1).low);
+    assert(axis.bin(1).low == 0.0);
+
+    // Adding one to the smallest negative double rounds to one. Lookup still
+    // uses the original observation to place it below the boundary at zero.
+    assert(axis.index(nextDown(0.0)) == 0);
+    assert(axis.index(0.0) == 1);
+    assert(axis.index(nextUp(0.0)) == 1);
 }
 
 /// Basic tests
@@ -1204,13 +1316,29 @@ public:
     ///
     alias options = regularAxis.options;
 
-    ///
+    /++
+    Construct bins in transformed space with shared original-space boundaries.
+    Transform functions must be deterministic, and inverse-transformed edges
+    between low and high must be strictly increasing. Assertion-enabled
+    construction checks all edges in O(N_bin) time without allocating storage.
+    +/
     this(CountType N_bin, BinType low, BinType high)
     {
         assert(high > low, "TransformAxis.this: high must be greater than low");
         regularAxis = RegularAxis!(CountType, BinType, axisOptions)(N_bin, transformFunction(low), transformFunction(high));
         _low = low;
         _high = high;
+        assert(hasStrictBoundaries(this),
+            "TransformAxis.this: inverse-transformed boundaries must be strictly increasing");
+    }
+
+    private BinType boundary()(size_t i) const
+    {
+        if (i == 0)
+            return _low;
+        if (i == N_bin)
+            return _high;
+        return inverseTransformFunction(regularAxis.boundary(i));
     }
 
     ///
@@ -1277,24 +1405,58 @@ public:
         return regularAxis.value(transformFunction(x));
     }
 
-    ///
-    @fmamath CountType index()(BinType x) const
+    /++
+    Classify the original observation against the boundaries returned by bin.
+    The forward transform provides only a candidate: rounded transform values
+    may coincide even when observations lie on opposite sides of an edge.
+    +/
+    CountType index()(BinType x) const
     {
-        return regularAxis.index(transformFunction(x));
+        import mir.stat.descriptive.histogram.traits: checkOverUnderFlow;
+        checkOverUnderFlow!(BinType, axisOptions)(x, _low, _high);
+        static if (axisOptions.isCircular)
+        {
+            static if (axisOptions.isRightClosed)
+            {
+                if (x == _low)
+                    return N_bin - 1;
+            }
+            else if (x == _high)
+                return 0;
+        }
+        return cast(CountType) locateBoundaryBin!(axisOptions.isRightClosed())(
+            this, x, N_bin * regularAxis.value(transformFunction(x)));
     }
 
     ///
-    @fmamath Bin!BinType bin(size_t x) const
+    Bin!BinType bin(size_t x) const
     {
-        import mir.math.common: log, log10, log2, sqrt;
-
-        Bin!BinType regularBin = regularAxis.bin(x);
-
-        regularBin.low = inverseTransformFunction(regularBin.low);
-        regularBin.high = inverseTransformFunction(regularBin.high);
-
-        return regularBin;
+        assert(x < N_bin, "TransformAxis.bin: input must be less than N_bin");
+        return Bin!BinType(boundary(x), boundary(x + 1));
     }
+}
+
+/// Transformed lookup follows displayed boundaries in the original input space.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: log10;
+    import std.math: nextDown, nextUp;
+    auto axis = TransformAxis!(uint, double, log10, "10.0 ^^ a", AxisOptions())(
+        20, 1.0, 1.0e12);
+    auto edge = axis.bin(1).low;
+
+    // Adjacent descriptions share one inverse-transformed edge.
+    assert(axis.bin(0).high == edge);
+    // Even if logarithms of these nearby values round identically, the
+    // original observations distinguish which side of the edge they occupy.
+    assert(axis.index(nextDown(edge)) == 0);
+    assert(axis.index(edge) == 1);
+    assert(axis.index(nextUp(edge)) == 1);
+    // The outside endpoints retain the exact values supplied at construction.
+    assert(axis.bin(0).low == 1.0);
+    assert(axis.bin(19).high == 1.0e12);
 }
 
 /// Basic tests
@@ -3094,4 +3256,303 @@ unittest
     auto right = makeAxis!true();
     check(left);
     check(right);
+}
+
+// Valid observations near endpoints must always map to ordinary bins.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
+    import mir.ndslice.allocation: rcslice;
+
+    static foreach (rightClosed; [false, true])
+    static foreach (circular; [false, true])
+    {{
+        alias A = RegularAxis!(uint, double, AxisOptions(rightClosed, true, true, circular));
+        auto axis = A(2, -1.0, 1.0);
+        // Exact hexadecimal literals represent the adjacent doubles inside each end.
+        assert(axis.index(0x1.fffffffffffffp-1) == 1);
+        assert(axis.index(-0x1.fffffffffffffp-1) == 0);
+        assert(axis.index(0.0) == (rightClosed ? 0 : 1));
+        static immutable uint[2] zero = [0, 0];
+        auto counts = rcslice!uint(zero[]);
+        auto h = HistogramAccumulator!(typeof(counts), A)(counts, axis);
+        h.put(0x1.fffffffffffffp-1);
+        h.put(-0x1.fffffffffffffp-1);
+        assert(h.counts[0] == 1 && h.counts[1] == 1);
+        assert(h.underflow == 0 && h.overflow == 0);
+        if (circular)
+        {
+            assert(axis.index(1.0) == (rightClosed ? 1 : 0));
+            assert(axis.index(-1.0) == (rightClosed ? 1 : 0));
+        }
+    }}
+    // An identity transform exercises the same endpoint rounding through delegation.
+    alias Transformed = TransformAxis!(uint, double, "a", "a", AxisOptions());
+    auto transformed = Transformed(2, -1.0, 1.0);
+    assert(transformed.index(0x1.fffffffffffffp-1) == 1);
+    // Underflow during normalization at the lower end of a right-closed axis.
+    auto tiny = RegularAxis!(uint, double, AxisOptions(true))(2, 0.0, 4.0);
+    assert(tiny.index(0x0.0000000000001p-1022) == 0);
+}
+
+// Reject invalid regular and transformed grids before boundary lookup.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    alias R = RegularAxis!(uint, double, AxisOptions());
+    assertThrown!AssertError(R(0, 0.0, 1.0));
+    assertThrown!AssertError(R(2, 1.0, 1.0));
+    assertThrown!AssertError(R(2, double.nan, 1.0));
+    assertThrown!AssertError(R(2, 0.0, double.infinity));
+    alias T = TransformAxis!(uint, double, "a", "a", AxisOptions());
+    assertThrown!AssertError(T(0, 0.0, 1.0));
+}
+
+// Extreme endpoint observations retain their bins and flow classification.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: nextUp, nextDown;
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        const T smallest = nextUp(T(0));
+        // Start at a power of two so these four upward ULPs have equal spacing.
+        const T large = nextUp(T.max / 4);
+        const T narrowHigh = nextUp(nextUp(nextUp(nextUp(large))));
+        T[2][7] bounds = [
+            [T(-1), T(1)], [T(0), T(2)],
+            [T(0), smallest * 4], [-T.min_normal, T.min_normal],
+            [large, narrowHigh], [T(0), T.max / 2], [-T.max / 4, T.max / 4]];
+        foreach (interval; bounds)
+        {
+            static foreach (right; [false, true])
+            static foreach (circular; [false, true])
+            {{
+                alias A = RegularAxis!(uint, T, AxisOptions(right, true, true, circular));
+                auto axis = A(2, interval[0], interval[1]);
+                T insideLow = nextUp(interval[0]);
+                T insideHigh = nextDown(interval[1]);
+                assert(axis.index(insideLow) == 0);
+                assert(axis.index(insideHigh) == 1);
+                assert(axis.isUnderflow(nextDown(interval[0])));
+                assert(axis.isOverflow(nextUp(interval[1])));
+                assert(axis.isUnderflow(-T.infinity));
+                assert(axis.isOverflow(T.infinity));
+                if (circular)
+                {
+                    assert(axis.index(interval[0]) == (right ? 1 : 0));
+                    assert(axis.index(interval[1]) == (right ? 1 : 0));
+                }
+                else if (right)
+                {
+                    assert(axis.isUnderflow(interval[0]));
+                    assert(axis.index(interval[1]) == 1);
+                }
+                else
+                {
+                    assert(axis.index(interval[0]) == 0);
+                    assert(axis.isOverflow(interval[1]));
+                }
+                static immutable uint[2] zero = [0, 0];
+                auto counts = rcslice!uint(zero[]);
+                auto h = HistogramAccumulator!(typeof(counts), A)(counts, axis);
+                h.put(insideLow);
+                h.put(insideHigh);
+                h.put(-T.infinity);
+                h.put(T.infinity);
+                assert(h.counts[0] == 1 && h.counts[1] == 1);
+                assert(h.underflow == 1 && h.overflow == 1);
+            }}
+        }
+        // On a zero-based axis, adjacent values around the exact interior edge
+        // do not lose precision through subtraction of a nonzero lower bound.
+        auto left = RegularAxis!(uint, T, AxisOptions())(2, T(0), T(2));
+        auto right = RegularAxis!(uint, T, AxisOptions(true))(2, T(0), T(2));
+        assert(left.index(nextDown(T(1))) == 0);
+        assert(left.index(T(1)) == 1);
+        assert(left.index(nextUp(T(1))) == 1);
+        assert(right.index(nextDown(T(1))) == 0);
+        assert(right.index(T(1)) == 0);
+        assert(right.index(nextUp(T(1))) == 1);
+        auto tiny = RegularAxis!(uint, T, AxisOptions(true))(2, T(0), T(4));
+        assert(tiny.index(smallest) == 0);
+    }}
+}
+
+// Reject invalid extreme configurations and NaN observations before updating counts.
+version(mir_stat_test_hist)
+unittest
+{
+    import std.meta: AliasSeq;
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        alias A = RegularAxis!(uint, T, AxisOptions(false, true, true));
+        assertThrown!AssertError(A(2, -T.max, T.max));
+        assertThrown!AssertError(A(2, T(0), T.infinity));
+        assertThrown!AssertError(A(2, -T.infinity, T(0)));
+        assertThrown!AssertError(A(2, T.nan, T(1)));
+        auto axis = A(2, T(-1), T(1));
+        assertThrown!AssertError(axis.index(T.nan));
+        auto h = HistogramAccumulator!(uint[], A)([0u, 0u], axis);
+        assertThrown!AssertError(h.put(T.nan));
+        assert(h.counts == [0u, 0u]);
+        assert(h.underflow == 0 && h.overflow == 0);
+    }}
+}
+
+// Independently scan public bin descriptions to check boundary lookup. This
+// deliberately does not use the normalized candidate or the binary-search helper.
+version(mir_stat_test_hist)
+private void checkBoundaryMembership(Axis)(ref Axis axis) @safe pure nothrow @nogc
+{
+    import std.math: nextUp, nextDown;
+    import mir.ndslice.allocation: mininitRcslice;
+    import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
+    alias T = Axis.BinType;
+    const n = cast(size_t) axis.N_bin;
+    auto counts = mininitRcslice!uint(n);
+    auto expectedCounts = mininitRcslice!uint(n);
+    foreach (i; 0 .. n) { counts[i] = 0; expectedCounts[i] = 0; }
+    auto histogram = HistogramAccumulator!(typeof(counts), Axis)(counts, axis);
+    assert(axis.bin(0).low == axis.low);
+    assert(axis.bin(n - 1).high == axis.high);
+    foreach (i; 0 .. n)
+    {
+        auto bin = axis.bin(i);
+        assert(bin.low < bin.high);
+        if (i + 1 < n)
+            assert(bin.high == axis.bin(i + 1).low);
+        foreach (edge; [bin.low, bin.high])
+        foreach (x; [nextDown(edge), edge, nextUp(edge)])
+        {
+            if (axis.isUnderflow(x) || axis.isOverflow(x))
+                continue;
+            size_t expected = n;
+            static if (Axis.options.isCircular)
+            {
+                static if (Axis.options.isRightClosed)
+                {
+                    if (x == axis.low) expected = n - 1;
+                }
+                else if (x == axis.high) expected = 0;
+            }
+            if (expected == n)
+                foreach (j; 0 .. n)
+                {
+                    auto interval = axis.bin(j);
+                    static if (Axis.options.isRightClosed)
+                        const contains = interval.low < x && x <= interval.high;
+                    else
+                        const contains = interval.low <= x && x < interval.high;
+                    if (contains) { expected = j; break; }
+                }
+            assert(expected < n);
+            assert(axis.index(x) == expected);
+            histogram.put(x);
+            ++expectedCounts[expected];
+        }
+    }
+    assert(counts == expectedCounts);
+    assert(histogram.underflow == 0 && histogram.overflow == 0);
+}
+
+// Wide and narrow intervals, neighboring representable values, and both closures.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: nextUp, nextDown;
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (right; [false, true])
+    static foreach (circular; [false, true])
+    {{
+        alias A = RegularAxis!(uint, T, AxisOptions(right, true, true, circular));
+        T[2][4] intervals = [[T(-1), T(1)], [T(0.1), T(1.1)],
+            [-T.max / 4, T.max / 4], [-T.min_normal, T.min_normal]];
+        foreach (n; [2u, 3u, 10u, 100u])
+        foreach (bounds; intervals)
+        {
+            auto axis = A(n, bounds[0], bounds[1]);
+            checkBoundaryMembership(axis);
+        }
+        // Only a few values are representable in these spans. The bins still
+        // have distinct edges; their interiors need not contain another value.
+        const T small = nextUp(T(0));
+        auto subnormal = A(4, T(0), small * 4);
+        checkBoundaryMembership(subnormal);
+        const T large = nextUp(T.max / 4);
+        auto narrow = A(4, large, nextUp(nextUp(nextUp(nextUp(large)))));
+        checkBoundaryMembership(narrow);
+
+        // Direct regression for cancellation at an exactly representable edge.
+        auto zeroCrossing = A(2, T(-1), T(1));
+        assert(zeroCrossing.index(nextDown(T(0))) == 0);
+        assert(zeroCrossing.index(T(0)) == (right ? 0 : 1));
+        assert(zeroCrossing.index(nextUp(T(0))) == 1);
+    }}
+}
+
+// Forward-transform estimates are checked against inverse-transformed edges.
+version(mir_stat_test_hist)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: log10, sqrt;
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (right; [false, true])
+    static foreach (circular; [false, true])
+    {{
+        alias Log = TransformAxis!(uint, T, (T x) => cast(T) log10(x),
+            (T x) => cast(T)(T(10) ^^ x), AxisOptions(right, true, true, circular));
+        auto logarithmic = Log(20, T(1), T(1.0e12));
+        checkBoundaryMembership(logarithmic);
+        alias Root = TransformAxis!(uint, T, (T x) => cast(T) sqrt(x),
+            (T x) => x * x, AxisOptions(right, true, true, circular));
+        auto squareRoot = Root(20, T(0), T(1.0e12));
+        checkBoundaryMembership(squareRoot);
+    }}
+}
+
+// Reject collapsed rounded grids, including collapse caused by the inverse transform.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import std.meta: AliasSeq;
+    import std.math: nextUp, sqrt;
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        alias A = RegularAxis!(uint, T, AxisOptions());
+        assertThrown!AssertError(A(4, T(1), nextUp(T(1))));
+        const T small = nextUp(T(0));
+        assertThrown!AssertError(A(2, T(0), small));
+        // A single bin needs only its two distinct endpoints.
+        auto one = A(1, T(0), small);
+        assert(one.index(T(0)) == 0);
+        assert(one.bin(0).high == small);
+        alias Root = TransformAxis!(uint, T, (T x) => cast(T) sqrt(x),
+            (T x) => x * x, AxisOptions());
+        assertThrown!AssertError(Root(2, T(0), small));
+    }}
+    alias Constant = TransformAxis!(uint, double, "a", "0.0", AxisOptions());
+    alias Reversed = TransformAxis!(uint, double, "a", "1.0 - a", AxisOptions());
+    alias Invalid = TransformAxis!(uint, double, "a", "double.nan", AxisOptions());
+    assertThrown!AssertError(Constant(4, 0.0, 1.0));
+    assertThrown!AssertError(Reversed(4, 0.0, 1.0));
+    assertThrown!AssertError(Invalid(4, 0.0, 1.0));
 }
