@@ -77,6 +77,13 @@ template put(size_t i)
 /++
 Accumulator used to generate histogram.
 
+With one axis, storage contains one count per ordinary bin. Multiple axes
+record separate marginal histograms: put(x, y) increments one bin in each
+axis, not a joint (x, y) bin. The current multiple-axis insertion path uses
+size_t[][] storage with one row per axis. Merging supports at most two axes;
+flow counters are tracked separately for each enabled axis. This is not a
+joint multidimensional histogram.
+
 If the `Axis` has an `options` member, the histogram may optionally allow
 for overflow and underflow members.
 
@@ -101,7 +108,6 @@ struct HistogramAccumulator(Storage, Axis...)
     import mir.primitives: hasShape, DeepElementType;
     import mir.stat.descriptive.histogram.traits: includeOverflow, includeUnderflow,
         BinTypeOf, isCategoryAxis;
-// need to check that storage dimension matches axis
 // isRandomAccessRange for storage does not work for single value
 //isRandomAccessRange!Storage &&
 //        __traits(compiles, {alias deepElementType = DeepElementType!(Storage);})&&
@@ -180,9 +186,25 @@ public:
         alias UnderflowType = typeof(underflowStorage.storage);
     }
 
-    ///
+    /++
+    Construct an accumulator with storage matching the axes.
+    Params:
+        x = ordinary counts; one element per bin, or one matching row per axis
+        y = axes defining the bins
+    +/
     this(Storage x, Axis y)
     {
+        static if (N == 1)
+            assert(x.length == y[0].N_bin,
+                "HistogramAccumulator.this: storage length must match axis");
+        else
+        {
+            assert(x.length == N,
+                "HistogramAccumulator.this: one storage row required per axis");
+            static foreach (i; 0 .. N)
+                assert(x[i].length == y[i].N_bin,
+                    "HistogramAccumulator.this: storage row length must match axis");
+        }
         counts = x;
         axis = y;
     }
@@ -1353,4 +1375,21 @@ unittest
     const view = HistogramBinView!(uint[], ReadOnlyAxis)(
         [2u], ReadOnlyAxis([0.0, 1.0]));
     assert(view.save.front.bin.high == 1.0 && view.front.count == 2);
+}
+
+// Validate storage shape before accepting an accumulator.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    alias A = IntegralAxis!(size_t, double, AxisOptions());
+    alias H = HistogramAccumulator!(size_t[], A);
+    auto axis = A(2, 0.0);
+    assertThrown!AssertError(H([0UL], axis));
+    assertThrown!AssertError(H([0UL, 0UL, 0UL], axis));
+    alias M = HistogramAccumulator!(size_t[][], A, A);
+    assertThrown!AssertError(M([[0UL, 0UL]], axis, axis));
+    assertThrown!AssertError(M([[0UL, 0UL], [0UL]], axis, axis));
 }

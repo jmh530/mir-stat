@@ -362,11 +362,26 @@ public:
     ///
     alias options = axisOptions;
 
-    ///
+    /++
+    Construct a positive number of unit-width bins. The upper bound must be
+    representable and greater than low.
+    +/
     this(CountType N_bin, BinType low)
     {
+        assert(N_bin > 0, "IntegralAxis.this: N_bin must be positive");
+        import std.traits: isIntegral;
+        static if (isIntegral!CountType && isIntegral!BinType)
+        {
+            // Check before high() narrows the count or adds it to low.
+            // Positive integral counts can be compared without signed promotion.
+            assert(cast(ulong) N_bin <= cast(ulong) BinType.max,
+                "IntegralAxis.this: N_bin must fit BinType");
+            assert(low <= BinType.max - cast(BinType) N_bin,
+                "IntegralAxis.this: upper bound must fit BinType");
+        }
         _N_bin = N_bin;
         _low = low;
+        assert(high > low, "IntegralAxis.this: upper bound must exceed low");
     }
 
     ///
@@ -2814,9 +2829,19 @@ public:
     ///
     alias options = axisOptions;
 
-    ///
+    /++
+    Boundaries must define at least one bin, be strictly increasing, and have a
+    bin count representable by CountType. Keep shared boundaries unchanged
+    while using the axis, including through external aliases.
+    +/
     this(It, SliceKind kind)(Slice!(It, 1LU, kind) slice)
     {
+        assert(slice.length >= 2, "VariableAxis.this: at least two boundaries required");
+        assert(slice.length - 1 <= CountType.max,
+            "VariableAxis.this: bin count does not fit CountType");
+        foreach (i; 1 .. slice.length)
+            assert(slice[i - 1] < slice[i],
+                "VariableAxis.this: boundaries must be strictly increasing");
         _payload = slice;
     }
 
@@ -2827,8 +2852,10 @@ public:
     auto lightConst()() const @property
     {
         import mir.qualifier: LightConstOf;
-        return VariableAxis!(CountType, LightConstOf!Iterator, axisOptions)(
-            _payload.lightConst);
+        // Reuse already validated boundaries without scanning them on each view.
+        VariableAxis!(CountType, LightConstOf!Iterator, axisOptions) result;
+        result._payload = _payload.lightConst;
+        return result;
     }
 
     ///
@@ -3297,19 +3324,63 @@ unittest
     assert(tiny.index(0x0.0000000000001p-1022) == 0);
 }
 
-// Reject invalid regular and transformed grids before boundary lookup.
+// Integral endpoints must not truncate the count or overflow during addition.
 version(mir_stat_test_hist)
 unittest
 {
     import core.exception: AssertError;
     import std.exception: assertThrown;
+    alias WideCount = IntegralAxis!(ulong, uint, AxisOptions());
+    assertThrown!AssertError(WideCount(0x1_0000_0001UL, 0u));
+    // A representable count can still overflow when added to the lower bound.
+    assertThrown!AssertError(WideCount(2, uint.max - 1));
+    auto unsignedLimit = WideCount(uint.max, 0u);
+    assert(unsignedLimit.high == uint.max);
+    assert(unsignedLimit.index(uint.max - 1) == uint.max - 1);
+
+    alias Signed = IntegralAxis!(uint, int, AxisOptions());
+    assertThrown!AssertError(Signed(cast(uint) int.max + 1, 0));
+    assertThrown!AssertError(Signed(2, int.max - 1));
+    auto signedLimit = Signed(2, int.max - 2);
+    assert(signedLimit.high == int.max);
+    assert(signedLimit.index(int.max - 1) == 1);
+    // Negative lower bounds remain valid, including at the signed minimum.
+    auto negative = Signed(2, int.min);
+    assert(negative.high == int.min + 2);
+    assert(negative.index(int.min + 1) == 1);
+    auto crossingZero = Signed(2, -1);
+    assert(crossingZero.high == 1);
+    assert(crossingZero.index(0) == 1);
+}
+
+// Reject malformed axes at construction, before indexing or allocation.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.ndslice.slice: sliced;
+
+    alias I = IntegralAxis!(uint, double, AxisOptions());
     alias R = RegularAxis!(uint, double, AxisOptions());
+    assertThrown!AssertError(I(0, 0.0));
+    assertThrown!AssertError(I(2, double.nan));
+    assertThrown!AssertError(I(2, double.infinity));
     assertThrown!AssertError(R(0, 0.0, 1.0));
     assertThrown!AssertError(R(2, 1.0, 1.0));
     assertThrown!AssertError(R(2, double.nan, 1.0));
     assertThrown!AssertError(R(2, 0.0, double.infinity));
     alias T = TransformAxis!(uint, double, "a", "a", AxisOptions());
     assertThrown!AssertError(T(0, 0.0, 1.0));
+    alias V = VariableAxis!(uint, double*, AxisOptions());
+    foreach (breaks; [cast(double[]) [], [0.0], [0.0, 0.0],
+                      [0.0, 2.0, 1.0], [0.0, double.nan, 2.0]])
+        assertThrown!AssertError(V(breaks.sliced));
+    auto many = new double[257];
+    foreach (i, ref value; many) value = i;
+    alias Small = VariableAxis!(ubyte, double*, AxisOptions());
+    assertThrown!AssertError(Small(many.sliced));
+    assert(V([0.0, 1.0].sliced).N_bin == 1);
 }
 
 // Extreme endpoint observations retain their bins and flow classification.
