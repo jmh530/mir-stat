@@ -3410,8 +3410,8 @@ unittest
             {{
                 alias A = RegularAxis!(uint, T, AxisOptions(right, true, true, circular));
                 auto axis = A(2, interval[0], interval[1]);
-                T insideLow = nextUp(interval[0]);
-                T insideHigh = nextDown(interval[1]);
+                const T insideLow = nextUp(interval[0]);
+                const T insideHigh = nextDown(interval[1]);
                 assert(axis.index(insideLow) == 0);
                 assert(axis.index(insideHigh) == 1);
                 assert(axis.isUnderflow(nextDown(interval[0])));
@@ -3436,10 +3436,7 @@ unittest
                 static immutable uint[2] zero = [0, 0];
                 auto counts = rcslice!uint(zero[]);
                 auto h = HistogramAccumulator!(typeof(counts), A)(counts, axis);
-                h.put(insideLow);
-                h.put(insideHigh);
-                h.put(-T.infinity);
-                h.put(T.infinity);
+                h.put(insideLow, insideHigh, -T.infinity, T.infinity);
                 assert(h.counts[0] == 1 && h.counts[1] == 1);
                 assert(h.underflow == 1 && h.overflow == 1);
             }}

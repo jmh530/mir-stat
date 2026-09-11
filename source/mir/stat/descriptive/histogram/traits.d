@@ -344,3 +344,11 @@ unittest
     static assert(isBreakFunction!(scott!uint));
     static assert(isBreakFunction!(freedmanDiaconis!uint));
 }
+
+// Match observation types without discarding qualifiers on referenced data.
+package template acceptsAxisValue(Axis, T)
+{
+    import std.traits: Unqual, isSomeString;
+    enum acceptsAxisValue = is(Unqual!T == Unqual!(BinTypeOf!Axis)) ||
+        (isCategoryAxis!Axis && isSomeString!T);
+}

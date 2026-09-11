@@ -107,7 +107,7 @@ struct HistogramAccumulator(Storage, Axis...)
     import std.traits: hasMember, isIterable, isSomeString;
     import mir.primitives: hasShape, DeepElementType;
     import mir.stat.descriptive.histogram.traits: includeOverflow, includeUnderflow,
-        BinTypeOf, isCategoryAxis;
+        BinTypeOf, isCategoryAxis, acceptsAxisValue;
 // isRandomAccessRange for storage does not work for single value
 //isRandomAccessRange!Storage &&
 //        __traits(compiles, {alias deepElementType = DeepElementType!(Storage);})&&
@@ -221,21 +221,44 @@ public:
         }
     }
 
-    ///
-    void put(T...)(T x)
+    private template acceptsArguments(T...)
     {
-        import mir.ndslice.topology: iota;
+        enum acceptsArguments = () {
+            static if (T.length == 0 || (N != 1 && T.length != N))
+                return false;
+            else
+            {
+                static foreach (i; 0 .. T.length)
+                    static if (!acceptsAxisValue!(Axis[N == 1 ? 0 : i], T[i]))
+                        return false;
+                return true;
+            }
+        }();
+    }
 
-        static foreach(i; iota(N))
+    /++
+    Record observations supplied as arguments.
+    With one axis, each argument is a separate observation. With multiple axes,
+    supply exactly one compatible coordinate per axis for a single observation.
+    +/
+    void put(T...)(T x)
+        if (acceptsArguments!T)
+    {
+        static if (N == 1)
         {
-            putSingleImpl!(T[i], i)(x[i]);
+            static foreach (i; 0 .. T.length)
+                putSingleImpl!(T[i], 0)(x[i]);
+        }
+        else
+        {
+            static foreach (i; 0 .. N)
+                putSingleImpl!(T[i], i)(x[i]);
         }
     }
 
     private
     void putSingleImpl(T, size_t i)(T x)
-        if (is(T == BinTypeOf!(Axis[i])) || 
-            (isCategoryAxis!(Axis[i]) && isSomeString!(T)))
+        if (acceptsAxisValue!(Axis[i], T))
     {
         static if (includeOverflow!(Axis[i]) && includeUnderflow!(Axis[i])) {
             if (axis[i].isOverflow(x)) {
@@ -1375,6 +1398,41 @@ unittest
     const view = HistogramBinView!(uint[], ReadOnlyAxis)(
         [2u], ReadOnlyAxis([0.0, 1.0]));
     assert(view.save.front.bin.high == 1.0 && view.front.count == 2);
+}
+
+// One axis accepts variadic batches; multiple axes require one coordinate each.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    alias A = IntegralAxis!(size_t, double, AxisOptions());
+    auto h = HistogramAccumulator!(size_t[], A)([0UL, 0UL], A(2, 0.0));
+    static assert(!__traits(compiles, h.put()));
+    static assert(__traits(compiles, h.put(0.5, 1.5)));
+    static assert(!__traits(compiles, h.put(0.5, "invalid")));
+    h.put(0.5, 1.5);
+    assert(h.counts == [1UL, 1UL]);
+    h.put([0.5, 1.5]);
+    assert(h.counts == [2UL, 2UL]);
+    const double first = 0.5;
+    immutable double second = 1.5;
+    static assert(__traits(compiles, h.put(first, second)));
+    h.put(first, second);
+    const double[] readOnly = [0.5, 1.5];
+    immutable double[] frozen = [0.5, 1.5];
+    h.put(readOnly);
+    h.put(frozen);
+    assert(h.counts == [5UL, 5UL]);
+    auto multi = HistogramAccumulator!(size_t[][], A, A)(
+        [[0UL, 0UL], [0UL, 0UL]], A(2, 0.0), A(2, 0.0));
+    static assert(__traits(compiles, multi.put(0.5, 1.5)));
+    static assert(!__traits(compiles, multi.put(0.5, "invalid")));
+    static assert(!__traits(compiles, multi.put(0.5)));
+    static assert(!__traits(compiles, multi.put(0.5, 1.5, 0.5)));
+    multi.put(0.5, 1.5);
+    assert(multi.counts[0] == [1UL, 0UL]);
+    assert(multi.counts[1] == [0UL, 1UL]);
 }
 
 // Validate storage shape before accepting an accumulator.

@@ -19,6 +19,7 @@ T4=$(TR $(TDNW $(LREF $1)) $(TD $2) $(TD $3) $(TD $4))
 module mir.stat.descriptive.histogram.frequency;
 
 import mir.internal.utility: isFloatingPoint;
+import std.meta: allSatisfy;
 import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
 import mir.stat.descriptive.histogram.traits: isAxis;
 import mir.stat.descriptive.histogram.internal.view: supportsBinView;
@@ -83,7 +84,7 @@ struct FrequencyAccumulator(Storage, AxisType)
 {
     import std.traits: isIterable, isSomeString;
     import mir.stat.descriptive.histogram.traits: includeOverflow, includeUnderflow,
-        BinTypeOf, isCategoryAxis;
+        BinTypeOf, isCategoryAxis, acceptsAxisValue;
 
     private alias Histogram = HistogramAccumulator!(Storage, AxisType);
     private Histogram histogramAccumulator;
@@ -317,13 +318,20 @@ struct FrequencyAccumulator(Storage, AxisType)
             put(x);
     }
 
-    /// Record one observation and increment the total after successful insertion.
-    void put(T)(T x)
-        if (is(T == BinTypeOf!AxisType) ||
-            (isCategoryAxis!AxisType && isSomeString!T))
+    private template acceptsObservation(T)
     {
-        histogramAccumulator.put(x);
-        total++;
+        enum acceptsObservation = acceptsAxisValue!(AxisType, T);
+    }
+
+    /// Record one or more observations, updating the total after each successful insertion.
+    void put(T...)(T x)
+        if (T.length > 0 && allSatisfy!(acceptsObservation, T))
+    {
+        static foreach (i; 0 .. T.length)
+        {
+            histogramAccumulator.put(x[i]);
+            total++;
+        }
     }
 
     /// Merge another accumulator with a compatible axis.
@@ -1490,4 +1498,51 @@ version(mir_stat_test_hist_lifetime)
             auto entry = bins.front;
         }));
     }
+}
+
+// Variadic frequency insertion validates every type and counts every observation.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, CategoryAxis, AxisOptions;
+    alias A = IntegralAxis!(uint, double, AxisOptions(false, true, true));
+    auto f = FrequencyAccumulator!(uint[], A)([0u, 0u], A(2, 0.0));
+    static assert(__traits(compiles, f.put(0.5, 1.5)));
+    static assert(!__traits(compiles, f.put()));
+    static assert(!__traits(compiles, f.put(0.5, "invalid")));
+    static assert(!__traits(compiles, f.put("invalid", 0.5)));
+    f.put(-1.0, 0.5, 1.5, 3.0);
+    assert(f.count == 4 && f.counts == [1u, 1u]);
+    assert(f.underflow == 1 && f.overflow == 1);
+    const double first = 0.5;
+    immutable double second = 1.5;
+    static assert(__traits(compiles, f.put(first, second)));
+    f.put(first, second);
+    const double[] readOnly = [0.5, 1.5];
+    immutable double[] frozen = [0.5, 1.5];
+    f.put(readOnly);
+    f.put(frozen);
+    assert(f.count == 10 && f.counts == [4u, 4u]);
+    enum Label { first, second }
+    alias C = CategoryAxis!(uint, Label, AxisOptions(false, true));
+    auto categories = FrequencyAccumulator!(uint[], C)([0u, 0u], C());
+    static assert(__traits(compiles, categories.put(Label.first, "second")));
+    static assert(!__traits(compiles, categories.put(Label.first, 0.5)));
+    categories.put(Label.first, "second", "unknown");
+    assert(categories.count == 3 && categories.overflow == 1);
+    assert(categories.counts == [1u, 1u]);
+}
+
+// A rejected batch element preserves the counts and total of earlier insertions.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    alias A = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], A)([0u, 0u], A(2, 0.0));
+    assertThrown!AssertError(f.put(0.5, double.nan, 1.5));
+    assert(f.count == 1 && f.counts == [1u, 0u]);
 }
