@@ -286,7 +286,7 @@ public:
     static if (anySatisfy!(includeOverflow, Axis))
     {
         ///
-        OverflowType overflow()()
+        OverflowType overflow()() const
         {
             return overflowStorage.storage;
         }
@@ -295,7 +295,7 @@ public:
     static if (anySatisfy!(includeUnderflow, Axis))
     {
         ///
-        UnderflowType underflow()()
+        UnderflowType underflow()() const
         {
             return underflowStorage.storage;
         }
@@ -344,6 +344,14 @@ unittest
     assert(counts == [0, 1, 0, 0, 0]);
     assert(h.overflow == 1);
     assert(h.underflow == 1);
+
+    // Both flow counters can be inspected through a const reference.
+    void checkFlows(ref const(typeof(h)) histogram) @safe pure nothrow @nogc
+    {
+        assert(histogram.overflow == 1);
+        assert(histogram.underflow == 1);
+    }
+    checkFlows(h);
 }
 
 // Check over/underflow IntegralAxis
