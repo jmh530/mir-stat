@@ -12,7 +12,6 @@ Copyright: 2026 Mir Stat Authors.
 module mir.stat.descriptive.histogram;
 
 public import mir.stat.descriptive.histogram.frequency;
-public import mir.stat.descriptive.histogram.view;
 public import mir.stat.descriptive.histogram.breaks;
 public import mir.stat.descriptive.histogram.accumulator;
 public import mir.stat.descriptive.histogram.axis;
@@ -20,8 +19,6 @@ public import mir.stat.descriptive.histogram.traits;
 public import mir.stat.descriptive.histogram.api;
 
 // TODO: Histogram result access
-// - Add frequency views; one-dimensional ordinary-bin/count views and slicing
-//   are available through HistogramAccumulator.bins.
 // - Add cumulative frequency support.
 // - Add histogram formatting.
 //

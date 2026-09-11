@@ -21,6 +21,8 @@ module mir.stat.descriptive.histogram.frequency;
 import mir.internal.utility: isFloatingPoint;
 import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
 import mir.stat.descriptive.histogram.traits: isAxis;
+import mir.stat.descriptive.histogram.internal.view: supportsBinView;
+import mir.stat.internal.borrow: hasBorrowEscapeChecking, uncheckedBorrow;
 
 /++
 One-dimensional histogram wrapper that also maintains the total recorded count.
@@ -78,6 +80,36 @@ struct FrequencyAccumulator(Storage, AxisType)
         total = 0;
         foreach (value; counts)
             total += value;
+    }
+
+    /++
+    Borrow a read-only random-access view of ordinary bins and frequencies.
+
+    Each element reads its count and frequency from this accumulator. The
+    denominator includes enabled flow bins. FrequencyType defaults to double;
+    frequencies are NaN when the total is zero.
+
+    The accumulator must outlive the view and every saved or sliced cursor.
+    Do not move, replace, or destroy it while borrowed. Modify counts only
+    through this original accumulator. Returned bin descriptions may themselves
+    borrow axis storage. This view does not retain ownership of the accumulator.
+
+    Safety is inferred as @safe when the required escape checking is available
+    (currently -preview=dip1000), otherwise @system. Compiler checks do not enforce
+    the restriction against moving or replacing the source. In @safe code,
+    scope-bound accumulators (for example, with stack-array storage) cannot be
+    borrowed by this accessor.
+
+    Params:
+        FrequencyType = floating-point output type
+    +/
+    auto frequencyBins(FrequencyType = double)() return const
+        if (isFloatingPoint!FrequencyType && supportsBinView!(Storage, AxisType))
+    {
+        static if (!hasBorrowEscapeChecking)
+            uncheckedBorrow();
+        return FrequencyBinView!(Storage, AxisType, FrequencyType)(
+            &this, 0, counts.length, counts.length);
     }
 
     /// Total recorded observations, including flow bins.
@@ -518,4 +550,482 @@ unittest
     f.put(0.5);
     assertThrown!AssertError(f.frequency(2));
     assert(f.count == 1);
+}
+
+
+/++
+A bin description, count, and relative frequency read from an accumulator.
+Values are returned by value; changing an entry does not update the accumulator.
+Bin descriptions follow the axis's existing bin API.
+
+Params:
+    BinDescription = axis-specific bin description
+    Count = count value type
+    FrequencyType = floating-point output type
++/
+struct FrequencyBin(BinDescription, Count, FrequencyType)
+{
+    /// Original ordinary-bin index.
+    size_t index;
+    /// Interval or category description.
+    BinDescription bin;
+    /// Count when the entry was read.
+    Count count;
+    /// Relative frequency when the entry was read.
+    FrequencyType frequency;
+}
+
+/++
+Borrowed random-access range created by FrequencyAccumulator.frequencyBins.
+
+The range refers to the original accumulator, including its running total.
+It does not copy the total or retain separate count storage. Updates through
+that accumulator are visible on later reads. Each returned count and frequency
+is a value; a bin description may still borrow axis storage.
+
+Ordinary bins, including zero-count bins, are included; flow bins are excluded.
+The denominator includes flow counts. Slicing preserves original bin indices.
+A const view supports indexing, save, and slicing; derived cursors are mutable.
+
+Keep the source alive and in place until all views and borrowed descriptions
+are finished. Do not move or replace it, or mutate shared storage through other
+aliases. Assertions detect invalid indices, uninitialized views, and changes to
+the bin count; they cannot detect a destroyed source or every replacement.
+
+Params:
+    Storage = source count storage
+    AxisType = source axis type
+    FrequencyType = floating-point output type, defaulting to double
++/
+struct FrequencyBinView(Storage, AxisType, FrequencyType = double)
+    if (isFloatingPoint!FrequencyType && supportsBinView!(Storage, AxisType))
+{
+    private alias Accumulator = FrequencyAccumulator!(Storage, AxisType);
+    private const(Accumulator)* _source;
+    private size_t _begin, _end, _binCount;
+
+    /// Type returned by element access.
+    alias Element = FrequencyBin!(
+        typeof((const AxisType).init.bin(size_t.init)),
+        Accumulator.CountType, FrequencyType);
+
+    private this(const(Accumulator)* source, size_t begin, size_t end, size_t binCount)
+    {
+        _source = source;
+        _begin = begin;
+        _end = end;
+        _binCount = binCount;
+    }
+
+    private void checkSource() const
+    {
+        assert(_source !is null, "FrequencyBinView: uninitialized view");
+        assert(_source.counts.length == _binCount && _source.axis.N_bin == _binCount,
+            "FrequencyBinView: source bin count changed while borrowed");
+    }
+
+    /// Number of remaining ordinary bins.
+    size_t length() const @property { return _end - _begin; }
+
+    /// Whether the cursor is exhausted.
+    bool empty() const @property { return _begin == _end; }
+
+    /// First remaining element, returned by value.
+    Element front() const @property
+    {
+        assert(!empty, "FrequencyBinView.front: empty range");
+        return this[0];
+    }
+
+    /// Last remaining element, returned by value.
+    Element back() const @property
+    {
+        assert(!empty, "FrequencyBinView.back: empty range");
+        return this[length - 1];
+    }
+
+    /// Advance the cursor without changing the accumulator.
+    void popFront()
+    {
+        assert(!empty, "FrequencyBinView.popFront: empty range");
+        ++_begin;
+    }
+
+    /// Remove the last bin from this cursor's range.
+    void popBack()
+    {
+        assert(!empty, "FrequencyBinView.popBack: empty range");
+        --_end;
+    }
+
+    /// Copy the cursor, borrowing the same source.
+    auto save() const @property
+    {
+        return FrequencyBinView(_source, _begin, _end, _binCount);
+    }
+
+    /// Read a bin, count, and frequency from the same accumulator.
+    Element opIndex(size_t index) const
+    {
+        checkSource();
+        assert(index < length, "FrequencyBinView: index is out of range");
+        auto originalIndex = _begin + index;
+        return Element(originalIndex, _source.axis.bin(originalIndex),
+            _source.counts[originalIndex], _source.frequency!FrequencyType(originalIndex));
+    }
+
+    /// Slice relative to the cursor; entry indices remain original bin indices.
+    auto opSlice(size_t begin, size_t end) const
+    {
+        assert(begin <= end && end <= length,
+            "FrequencyBinView: slice is out of range");
+        return FrequencyBinView(_source, _begin + begin, _begin + end, _binCount);
+    }
+
+    /// Copy the full remaining range.
+    auto opSlice() const { return save; }
+
+    /// Support $ in indexing and slicing.
+    size_t opDollar() const { return length; }
+}
+
+/// Iterate over ordinary bins with their counts and relative frequencies.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([0u, 0u], Axis(2, 0.0));
+    f.put([0.5, 1.25, 1.5, 1.75]);
+
+    // f stays alive and in place for the entire traversal.
+    foreach (entry; f.frequencyBins())
+    {
+        assert(entry.bin.low == entry.index);
+        assert(entry.frequency == cast(double) entry.count / 4);
+    }
+}
+
+/// Select an output type independently of the accumulator.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([1u, 1u], Axis(2, 0.0));
+    auto bins = f.frequencyBins!float();
+    static assert(is(typeof(bins.front.frequency) == float));
+    assert(bins.front.frequency == 0.5f);
+}
+
+/// Const views share live counts and totals while cursors move independently.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    auto f = FrequencyAccumulator!(uint[], Axis)([1u, 1u], Axis(2, 0.0));
+
+    // const fixes this view's traversal position; it does not freeze f's data.
+    // f must stay alive and in place while fixed and its derived cursors exist.
+    const fixed = f.frequencyBins();
+
+    // An entry captures count and frequency values at the time it is read.
+    // Initially, the first bin contains one of the two recorded observations.
+    auto previous = fixed.front;
+
+    // Adding 0.5 through f increments the first bin to 2 and the total to 3.
+    // fixed reads both updated values from f. previous keeps its earlier values.
+    f.put(0.5);
+    assert(fixed.front.count == 2);
+    assert(fixed.front.frequency == 2.0 / 3);
+    assert(previous.frequency == 0.5);
+
+    // save creates a mutable cursor at fixed's current position.
+    // Advancing cursor skips the first bin without moving fixed.
+    auto cursor = fixed.save;
+    cursor.popFront();
+    assert(cursor.front.frequency == 1.0 / 3);
+
+    // Slicing creates another independent cursor over just the second bin.
+    // Its denominator is still f's full total of 3, not the sliced bin's count.
+    // Original bin indices are preserved, and fixed remains at bin 0.
+    auto tail = fixed[1 .. $];
+    assert(tail.front.index == 1 && fixed.front.index == 0);
+}
+
+// Runtime behavior is identical with and without escape checking.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    import mir.math.common: approxEqual;
+    import std.math: isNaN;
+    import std.algorithm: equal, map;
+    import std.range: retro, take;
+    import std.range.primitives: isRandomAccessRange, hasSlicing, hasAssignableElements;
+    import std.meta: AliasSeq;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions(false, true, true));
+    void check(T, Storage)(Storage counts, Storage otherCounts)
+    {
+        alias F = FrequencyAccumulator!(Storage, Axis);
+        auto f = F(counts, Axis(3, 0.0));
+        auto bins = f.frequencyBins!T();
+        alias View = typeof(bins);
+        static assert(isRandomAccessRange!View && hasSlicing!View);
+        static assert(!hasAssignableElements!View);
+        static assert(is(typeof(bins.front.frequency) == T));
+        static assert(!__traits(compiles, bins._source.counts[0] = 10u));
+        assert(isNaN(bins[0].frequency));
+        f.put([-1.0, 0.5, 0.75, 2.5, 4.0]);
+        assert(bins.length == 3 && f.count == 5);
+        assert(bins[0].count == 2 && bins[0].frequency == cast(T) 2 / 5);
+        assert(bins[1].count == 0 && bins[1].frequency == 0);
+        assert(bins[2].frequency == cast(T) 1 / 5);
+        auto previous = bins.front;
+        auto other = F(otherCounts, Axis(3, 0.0));
+        other.put([-1.0, 1.5]);
+        f.put(other);
+        assert(f.count == 7 && bins.front.frequency.approxEqual(cast(T) 2 / 7));
+        assert(previous.frequency == cast(T) 2 / 5);
+        previous.count = 100;
+        assert(f.counts[0] == 2);
+        assert(bins.map!(e => e.count).equal([2u, 1u, 1u]));
+        assert(bins.retro.map!(e => e.index).equal([2UL, 1UL, 0UL]));
+        assert(bins.take(2).length == 2);
+
+        const fixed = bins;
+        auto cursor = fixed.save;
+        cursor.popFront();
+        cursor.popBack();
+        assert(cursor.front.index == 1 && cursor.length == 1);
+        assert(fixed.length == 3);
+        assert(fixed[1 .. $][1 .. $].front.index == 2);
+        assert(fixed[].length == 3);
+        assert(fixed[$ .. $].empty);
+        cursor.popFront();
+        assert(cursor.empty);
+
+        // Further insertion changes the denominator even for a sliced view.
+        auto tail = fixed[2 .. $];
+        f.put(0.5);
+        assert(tail.front.frequency == cast(T) 1 / 8);
+    }
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        check!T([0u, 0u, 0u], [0u, 0u, 0u]);
+        check!T(rcslice!uint([0u, 0u, 0u]), rcslice!uint([0u, 0u, 0u]));
+    }
+}
+
+// Bin descriptions work across all built-in axis types.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, RegularAxis,
+        TransformAxis, VariableAxis, EnumAxis, CategoryAxis, AxisOptions;
+    import mir.ndslice.slice: sliced;
+    import mir.ndslice.allocation: rcslice;
+    import mir.rc.array: RCI;
+    import mir.math.common: approxEqual;
+
+    void check(Axis)(Axis axis)
+    {
+        auto f = FrequencyAccumulator!(uint[], Axis)([1u, 3u], axis);
+        const reader = f;
+        auto bins = reader.frequencyBins();
+        foreach (i; 0 .. bins.length)
+        {
+            const expected = axis;
+            auto description = expected.bin(i);
+            static if (__traits(hasMember, typeof(description), "slot"))
+                assert(bins[i].bin.slot == description.slot);
+            else
+            {
+                assert(bins[i].bin.low.approxEqual(description.low));
+                assert(bins[i].bin.high.approxEqual(description.high));
+            }
+            assert(bins[i].frequency == (i == 0 ? 0.25 : 0.75));
+        }
+    }
+    check(IntegralAxis!(uint, double, AxisOptions())(2, 0.0));
+    check(RegularAxis!(uint, double, AxisOptions(true))(2, 0.0, 4.0));
+    check(TransformAxis!(uint, double, "a * 2", "a / 2", AxisOptions())(2, 0.0, 4.0));
+    check(VariableAxis!(uint, double*, AxisOptions())([0.0, 1.0, 4.0].sliced));
+    check(VariableAxis!(uint, RCI!double, AxisOptions())(rcslice!double([0.0, 1.0, 4.0])));
+    enum Label { first, second }
+    check(EnumAxis!(uint, Label)());
+    check(CategoryAxis!(uint, Label, AxisOptions())());
+}
+
+// Assertions catch malformed use, but do not claim to detect dangling pointers.
+version(mir_stat_test_hist)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    alias F = FrequencyAccumulator!(uint[], Axis);
+    auto f = F([0u, 0u], Axis(2, 0.0));
+    auto bins = f.frequencyBins();
+    alias View = typeof(bins);
+    static assert(!__traits(compiles, f.frequencyBins!uint()));
+    View uninitialized;
+    assert(uninitialized.empty);
+    assertThrown!AssertError(uninitialized[0]);
+    assertThrown!AssertError(bins[2]);
+    assertThrown!AssertError(bins[size_t.max]);
+    assertThrown!AssertError(bins[0 .. 3]);
+    assertThrown!AssertError(bins[1 .. 0]);
+    auto empty = bins[0 .. 0];
+    assertThrown!AssertError(empty.front);
+    assertThrown!AssertError(empty.back);
+    assertThrown!AssertError(empty.popFront());
+    assertThrown!AssertError(empty.popBack());
+
+    // Replacement is forbidden by contract. Detect a changed shape when possible.
+    f = F([0u], Axis(1, 0.0));
+    assertThrown!AssertError(bins.front);
+}
+
+// The API cannot be called from @safe code without the required escape checking.
+version(mir_stat_test_hist)
+unittest
+{
+    import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+    alias Axis = IntegralAxis!(uint, double, AxisOptions());
+    alias F = FrequencyAccumulator!(uint[], Axis);
+    enum safeBorrowCompiles = __traits(compiles, () @safe {
+        auto f = F([1u, 1u], Axis(2, 0.0));
+        auto bins = f.frequencyBins();
+        assert(bins.front.frequency == 0.5);
+    });
+    static assert(safeBorrowCompiles == hasBorrowEscapeChecking);
+
+    // The return annotation catches this direct escape even in @system code.
+    static assert(!__traits(compiles, () @system {
+        auto f = F([1u, 1u], Axis(2, 0.0));
+        return f.frequencyBins();
+    }));
+}
+
+// This version selects tests, never the production safety annotation.
+version(mir_stat_test_hist_lifetime)
+{
+    static assert(hasBorrowEscapeChecking,
+        "Histogram lifetime tests require -preview=dip1000 escape checking");
+
+    @safe unittest
+    {
+        import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+        import mir.ndslice.allocation: rcslice;
+        import std.algorithm: map, equal;
+        alias Axis = IntegralAxis!(uint, double, AxisOptions());
+
+        void check(Storage)(Storage counts)
+        {
+            alias F = FrequencyAccumulator!(Storage, Axis);
+            auto borrow(return ref const F f) { return f.frequencyBins(); }
+            auto saved(return ref const F f)
+            {
+                const bins = f.frequencyBins();
+                return bins.save;
+            }
+            auto sliced(return ref const F f)
+            {
+                const bins = f.frequencyBins();
+                return bins[0 .. 1];
+            }
+            auto f = F(counts, Axis(2, 0.0));
+            auto bins = borrow(f);
+            auto copy = saved(f);
+            auto part = sliced(f);
+            f.put(0.5);
+            assert(bins.front.frequency == 2.0 / 3);
+            assert(copy.front.frequency == 2.0 / 3);
+            assert(part.front.frequency == 2.0 / 3);
+            assert(bins.map!(e => e.count).equal([2u, 1u]));
+
+            // Numeric entries contain values and may outlive the borrowed source.
+            auto entry()
+            {
+                auto local = F(counts, Axis(2, 0.0));
+                return local.frequencyBins().front;
+            }
+            assert(entry().count == 2);
+        }
+        check([1u, 1u]);
+        check(rcslice!uint([1u, 1u]));
+
+        // A borrowed variable axis is usable while its backing arrays live.
+        import mir.ndslice.slice: sliced;
+        import mir.stat.descriptive.histogram.axis: VariableAxis;
+        alias Variable = VariableAxis!(uint, double*, AxisOptions());
+        uint[] counts = [1, 3];
+        double[] breaks = [0, 1, 4];
+        auto f = FrequencyAccumulator!(uint[], Variable)(
+            counts, Variable(breaks.sliced));
+        auto bins = f.frequencyBins();
+        assert(bins[1].bin.low == 1 && bins[1].bin.high == 4);
+        assert(bins[1].frequency == 0.75);
+    }
+
+    unittest
+    {
+        import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
+        alias Axis = IntegralAxis!(uint, double, AxisOptions());
+        alias F = FrequencyAccumulator!(uint[], Axis);
+        alias View = FrequencyBinView!(uint[], Axis);
+        static assert(!__traits(compiles, () @safe {
+            auto bins = F([1u, 1u], Axis(2, 0.0)).frequencyBins();
+            auto value = bins.front;
+        }));
+        static assert(!__traits(compiles, () @safe {
+            auto f = F([1u, 1u], Axis(2, 0.0));
+            auto bins = f.frequencyBins();
+            return bins.save;
+        }));
+        static assert(!__traits(compiles, () @safe {
+            auto f = F([1u, 1u], Axis(2, 0.0));
+            const bins = f.frequencyBins();
+            return bins[0 .. 1];
+        }));
+        static assert(!__traits(compiles, () @safe {
+            View bins;
+            {
+                auto f = F([1u, 1u], Axis(2, 0.0));
+                bins = f.frequencyBins();
+            }
+            auto value = bins.front;
+        }));
+        static assert(!__traits(compiles, () @safe {
+            static View escaped;
+            auto f = F([1u, 1u], Axis(2, 0.0));
+            escaped = f.frequencyBins();
+        }));
+        static assert(!__traits(compiles, () @safe {
+            auto forward(return ref const F f) { return f.frequencyBins().save; }
+            auto f = F([1u, 1u], Axis(2, 0.0));
+            return forward(f);
+        }));
+        // DIP1000 also rejects borrowing an already scope-bound accumulator.
+        static assert(!__traits(compiles, () @safe {
+            import mir.ndslice.slice: sliced;
+            import mir.stat.descriptive.histogram.axis: VariableAxis;
+            alias Variable = VariableAxis!(uint, double*, AxisOptions());
+            uint[2] counts = [1, 3];
+            double[3] breaks = [0, 1, 4];
+            auto f = FrequencyAccumulator!(uint[], Variable)(
+                counts[], Variable(breaks[].sliced));
+            auto bins = f.frequencyBins();
+            auto entry = bins.front;
+        }));
+    }
 }

@@ -2716,6 +2716,9 @@ public:
 
         checkOverUnderFlow!(BinType, axisOptions)(x, low(), high());
 
+        // Search a borrowed slice while this axis retains the backing storage.
+        // This avoids copying reference-counted iterators inside Phobos's
+        // SortedRange, whose slicing path is not DIP1000-safe for those iterators.
         static if (!axisOptions.isRightClosed) {
             static if (axisOptions.isCircular) {
                 if (x == high()) {
@@ -2724,7 +2727,7 @@ public:
             }
             import std.range: assumeSorted;
             return cast(CountType)
-                (_payload.assumeSorted!("a <= b").lowerBound(x).length - 1);
+                (_payload.lightScope.assumeSorted!("a <= b").lowerBound(x).length - 1);
         } else {
             static if (axisOptions.isCircular) {
                 if (x == low()) {
@@ -2733,7 +2736,7 @@ public:
             }
             import std.range: assumeSorted;
             return cast(CountType)
-                (_payload.assumeSorted!("a < b").lowerBound(x).length - 1);
+                (_payload.lightScope.assumeSorted!("a < b").lowerBound(x).length - 1);
         }
     }
 
@@ -3049,4 +3052,46 @@ unittest
     static assert(is(typeof(x0) == VariableAxis!(size_t, RCI!(double), AxisOptions())));
     static assert(is(typeof(x1) == VariableAxis!(DefaultCountType, RCI!(double), AxisOptions())));
     static assert(is(typeof(x2) == VariableAxis!(DefaultCountType, RCI!(double), AxisOptions())));
+}
+
+
+// RC-backed lookups remain safe under DIP1000 and retain their break storage.
+version(mir_stat_test_hist)
+@safe pure nothrow
+unittest
+{
+    import mir.ndslice.allocation: rcslice;
+    import mir.rc.array: RCI;
+
+    auto makeAxis(bool rightClosed)()
+    {
+        // Only the returned axis retains this allocation after the call.
+        auto breaks = rcslice!double([0.0, 1.0, 3.0, 6.0]);
+        return VariableAxis!(uint, RCI!double, AxisOptions(rightClosed))(breaks);
+    }
+
+    void check(Axis)(ref Axis axis) @safe pure nothrow @nogc
+    {
+        static if (Axis.options.isRightClosed)
+        {
+            assert(axis.index(1.0) == 0);
+            assert(axis.index(3.0) == 1);
+            assert(axis.index(6.0) == 2);
+        }
+        else
+        {
+            assert(axis.index(0.0) == 0);
+            assert(axis.index(1.0) == 1);
+            assert(axis.index(3.0) == 2);
+        }
+        assert(axis.index(0.5) == 0);
+        assert(axis.index(2.0) == 1);
+        assert(axis.index(5.0) == 2);
+        assert(axis.low == 0 && axis.high == 6 && axis.N_bin == 3);
+    }
+
+    auto left = makeAxis!false();
+    auto right = makeAxis!true();
+    check(left);
+    check(right);
 }
