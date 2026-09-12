@@ -375,7 +375,8 @@ public:
 
     /++
     Construct a positive number of unit-width bins. The upper bound must be
-    representable and greater than low.
+    finite, representable, and greater than low. Floating-point boundaries must
+    remain strictly increasing; checking them takes O(N_bin) construction time.
     +/
     this(CountType N_bin, BinType low)
     {
@@ -393,6 +394,15 @@ public:
         _N_bin = N_bin;
         _low = low;
         assert(high > low, "IntegralAxis.this: upper bound must exceed low");
+        import mir.internal.utility: isFloatingPoint;
+        static if (isFloatingPoint!BinType)
+        {
+            import std.math: isFinite;
+            assert(isFinite(low) && isFinite(high),
+                "IntegralAxis.this: bounds must be finite");
+            assert(hasStrictBoundaries(this),
+                "IntegralAxis.this: boundaries must be strictly increasing");
+        }
     }
 
     ///
@@ -442,50 +452,44 @@ public:
 
         checkOverUnderFlow!(BinType, axisOptions)(x, _low, high());
 
-        import mir.math.common: floor;
         import std.traits: isIntegral;
 
-        static if (!axisOptions.isRightClosed) {
-            static if (axisOptions.isCircular) {
-                if (x == high()) {
-                    return cast(CountType) 0;
-                }
-            }
-            // Include a specialization for integral types because the behavior
-            // is simpler here.
-            static if (isIntegral!BinType) {
-                return cast(CountType) (x - _low);
-            } else {
-                return floatingBinIndex!CountType(floor(x - _low));
-            }
-        } else {
-            static if (axisOptions.isCircular) {
-                if (x == _low) {
+        static if (axisOptions.isCircular)
+        {
+            static if (axisOptions.isRightClosed)
+            {
+                if (x == _low)
                     return cast(CountType) (_N_bin - 1);
-                }
             }
-            BinType binValue = x - _low;
-            // Include a specialization for integral types because the behavior
-            // is simpler here.
-            static if (isIntegral!BinType) {
-                return cast(CountType) (binValue - 1);
-            } else {
-                CountType output = floatingBinIndex!CountType(floor(binValue));
-                // If binValue equals the floor of the binValue, then it is on integer, adjust for closed
-                if (binValue != output) {
-                    return output;
-                } else {
-                    return output - 1;
-                }
-            }
+            else if (x == high())
+                return cast(CountType) 0;
         }
+        static if (isIntegral!BinType)
+        {
+            static if (axisOptions.isRightClosed)
+                return cast(CountType) (x - _low - 1);
+            else
+                return cast(CountType) (x - _low);
+        }
+        else
+        {
+            // Subtraction supplies an estimate only: compare the original value
+            // with the same rounded edges exposed by bin().
+            return cast(CountType) locateBoundaryBin!(axisOptions.isRightClosed())(
+                this, x, x - _low);
+        }
+    }
+
+    private BinType boundary(size_t i) const
+    {
+        return _low + cast(BinType) i;
     }
 
     ///
     Bin!BinType bin()(size_t x) const
     {
         assert(x < N_bin, "IntegralAxis.bin: input must be less than N_bin");
-        return Bin!(BinType)(_low + x, _low + x + 1);
+        return Bin!(BinType)(boundary(x), boundary(x + 1));
     }
 }
 
@@ -817,7 +821,7 @@ private size_t locateBoundaryBin(bool rightClosed, Axis, Value, Scaled)(
         candidate = n - 1;
     else if (scaled > 0) // Zero, negative, or NaN estimates fall back from bin zero.
     {
-        candidate = cast(size_t) floor(scaled);
+        candidate = floatingBinIndex!size_t(floor(scaled));
         static if (rightClosed)
             if (scaled == candidate)
                 --candidate;
@@ -3660,4 +3664,57 @@ unittest
     assertThrown!AssertError(Constant(4, 0.0, 1.0));
     assertThrown!AssertError(Reversed(4, 0.0, 1.0));
     assertThrown!AssertError(Invalid(4, 0.0, 1.0));
+}
+
+// Unit-width grids must reject rounded-away steps in every floating-point type.
+version(mir_stat_test)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import std.meta: AliasSeq;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (right; [false, true])
+    {{
+        alias A = IntegralAxis!(uint, T, AxisOptions(right));
+        // At this power of two, the spacing above it is two rather than one.
+        const T limit = T(2) ^^ T.mant_dig;
+        assertThrown!AssertError(A(4, limit));
+        assertThrown!AssertError(A(4, -limit - T(4)));
+        assertThrown!AssertError(A(4, limit - T(2)));
+        assertThrown!AssertError(A(4, T.max));
+        assertThrown!AssertError(A(4, T.infinity));
+        assertThrown!AssertError(A(4, -T.infinity));
+        assertThrown!AssertError(A(4, T.nan));
+    }}
+}
+
+// Check public bin edges and neighboring values, including fractional origins
+// where subtraction can round an observation onto the wrong side of an edge.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: nextUp, nextDown;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (right; [false, true])
+    static foreach (circular; [false, true])
+    {{
+        alias A = IntegralAxis!(uint, T, AxisOptions(right, true, true, circular));
+        const T limit = T(2) ^^ T.mant_dig;
+        // These grids touch the precision limit without crossing into the
+        // region where adjacent unit steps collapse.
+        auto positive = A(4, limit - T(4));
+        auto negative = A(4, -limit);
+        checkBoundaryMembership(positive);
+        checkBoundaryMembership(negative);
+        foreach (low; [T(0.1), T(-0.1), nextUp(T(0)), nextDown(T(0))])
+        {
+            auto fractional = A(8, low);
+            checkBoundaryMembership(fractional);
+        }
+    }}
 }
