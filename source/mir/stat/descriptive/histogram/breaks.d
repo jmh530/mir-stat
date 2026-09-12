@@ -106,6 +106,11 @@ The formula calculates the ceiling of the result from first calculating the
 difference between the maximum value of the input and the minimum value of the
 input and then dividing that by the step size.
 
+Input must be nonempty and finite, and the width must be positive and finite.
+The resulting count must fit CountType. These requirements are checked with
+assertions. Constant input returns zero. Integral data with an integral width
+uses exact integer arithmetic; other combinations use at least double precision.
+
 Params:
     CountType = the type that is used to count in histogram bins
 Returns:
@@ -133,10 +138,61 @@ template binsFromWidth(CountType)
     {
         import mir.algorithm.iteration: minmaxIndex;
         import mir.math.common: ceil;
+        import mir.ndslice.topology: flattened;
+        import mir.primitives: elementCount;
+        import std.math: isFinite;
+        import std.traits: CommonType;
+
+        alias T = Unqual!(typeof(slice).DeepElement);
+        assert(slice.elementCount > 0, "binsFromWidth: input must not be empty");
+        assert(h > 0, "binsFromWidth: width must be positive");
+        static if (isFloatingPoint!H)
+            assert(isFinite(h), "binsFromWidth: width must be finite");
+        static if (isFloatingPoint!T)
+            foreach (value; slice.flattened)
+                assert(isFinite(value), "binsFromWidth: input must be finite");
 
         auto indexes = slice.minmaxIndex;
-
-        return cast(CountType) ceil((slice[indexes[1]] - slice[indexes[0]]) / h);
+        const low = slice[indexes[0]];
+        const high = slice[indexes[1]];
+        static if (isIntegral!T)
+        {
+            // Unsigned subtraction preserves the exact nonnegative distance,
+            // even across zero or between neighboring values near ulong.max.
+            const ulong span = cast(ulong) high - cast(ulong) low;
+            static if (isIntegral!H)
+            {
+                const ulong width = cast(ulong) h;
+                // Avoid both floating-point rounding and span + width overflow.
+                const ulong count = span / width + (span % width != 0);
+                assert(count <= cast(ulong) CountType.max,
+                    "binsFromWidth: bin count must fit CountType");
+                return cast(CountType) count;
+            }
+        }
+        static if (!(isIntegral!T && isIntegral!H))
+        {
+            alias F = CommonType!(double, T, H);
+            static if (isIntegral!T)
+                const F distance = cast(F) span;
+            else
+                const F distance = cast(F) high - cast(F) low;
+            const F width = cast(F) h;
+            // Opposite finite extremes can have an infinite difference even
+            // though division by the requested width gives a finite bin count.
+            const F ratio = isFinite(distance) ? distance / width
+                : cast(F) high / width - cast(F) low / width;
+            F count = ceil(ratio);
+            // A positive span still needs one bin if the ratio underflows.
+            if (high > low && count == 0)
+                count = 1;
+            // An exclusive power-of-two bound avoids rounding CountType.max
+            // upwards and accidentally accepting an out-of-range conversion.
+            enum F limit = F(CountType.max / 2 + 1) * 2;
+            assert(isFinite(count) && count >= 0 && count < limit,
+                "binsFromWidth: bin count must fit CountType");
+            return cast(CountType) count;
+        }
     }
 
     /++
@@ -144,7 +200,7 @@ template binsFromWidth(CountType)
         array = array
     +/
     CountType binsFromWidth(T, H)(T[] array, H h)
-        if (isFloatingPoint!(Unqual!T))
+        if (isFloatingPoint!(Unqual!T) || isIntegral!(Unqual!T))
     {
         import mir.ndslice.slice: sliced;
 
@@ -549,4 +605,91 @@ unittest
     assert(binsFromWidth!uint(values, 2.0) == 4);
     assert(scott(values) > 0);
     assert(freedmanDiaconis(values) > 0);
+}
+
+// Exact integer arithmetic, including full-width spans and nearby large values.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    import std.meta: AliasSeq;
+
+    int[2] ordinary = [0, 11];
+    assert(binsFromWidth!uint(ordinary[], 5) == 3);
+    assert(binsFromWidth!uint(ordinary[].sliced, 5) == 3);
+    int[2] extreme = [int.min, int.max];
+    assert(binsFromWidth!uint(extreme[], 2147483648.0) == 2);
+    assert(binsFromWidth!uint(extreme[], 2147483648UL) == 2);
+    long[2] full = [long.min, long.max];
+    assert(binsFromWidth!ulong(full[], 1) == ulong.max);
+    assert(binsFromWidth!ulong(full[], ulong.max) == 1);
+    ulong[2] nearby = [ulong.max - 11, ulong.max];
+    assert(binsFromWidth!uint(nearby[], 5) == 3);
+    assert(binsFromWidth!uint(nearby[], 5.0) == 3);
+    int[2] constant = [7, 7];
+    assert(binsFromWidth!uint(constant[], 5) == 0);
+    static foreach (C; AliasSeq!(byte, ubyte, short, ushort, int, uint, long, ulong))
+    {{
+        ulong[2] atLimit = [0, cast(ulong) C.max];
+        assert(binsFromWidth!C(atLimit[], 1) == C.max);
+    }}
+}
+
+// Finite floating-point extremes, including overflowing spans and tiny ratios.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: nextUp;
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        T[2] wide = [-T.max, T.max];
+        assert(binsFromWidth!uint(wide[], T.max) == 2);
+        T[2] tiny = [0, nextUp(T(0))];
+        assert(binsFromWidth!uint(tiny[], T.max) == 1);
+        T[2] ordinary = [0, 11];
+        assert(binsFromWidth!uint(ordinary[], 5) == 3);
+        T[2] constant = [7, 7];
+        assert(binsFromWidth!uint(constant[], T(5)) == 0);
+    }}
+}
+
+// Invalid inputs and counts must be rejected before conversion to CountType.
+version(mir_stat_test)
+unittest
+{
+    import core.exception: AssertError;
+    import std.exception: assertThrown;
+    import std.meta: AliasSeq;
+    int[] empty;
+    assertThrown!AssertError(binsFromWidth!uint(empty, 1));
+    int[2] ordinary = [0, 11];
+    assertThrown!AssertError(binsFromWidth!uint(ordinary[], 0));
+    assertThrown!AssertError(binsFromWidth!uint(ordinary[], -1));
+    static foreach (C; AliasSeq!(byte, ubyte, short, ushort, int, uint, long))
+    {{
+        ulong[2] tooMany = [0, cast(ulong) C.max + 1];
+        assertThrown!AssertError(binsFromWidth!C(tooMany[], 1));
+    }}
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        T[2] ordinaryFloat = [0, 11];
+        foreach (width; [T(0), T(-1), T.nan, T.infinity])
+            assertThrown!AssertError(binsFromWidth!uint(ordinaryFloat[], width));
+        foreach (invalid; [T.nan, T.infinity, -T.infinity])
+        {
+            T[3] input = [0, invalid, 1];
+            assertThrown!AssertError(binsFromWidth!uint(input[], 1));
+        }
+        T[2] tooMany = [0, 256];
+        assertThrown!AssertError(binsFromWidth!ubyte(tooMany[], T(1)));
+        T[2] atLimit = [0, 255];
+        assert(binsFromWidth!ubyte(atLimit[], T(1)) == 255);
+        T[2] beyondUlong = [0, T(2) ^^ 64];
+        assertThrown!AssertError(binsFromWidth!ulong(beyondUlong[], T(1)));
+        T[2] enormous = [0, T.max];
+        assertThrown!AssertError(binsFromWidth!ulong(enormous[], T.min_normal));
+    }}
 }
