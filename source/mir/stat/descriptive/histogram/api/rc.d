@@ -46,7 +46,7 @@ HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
 }
 
 // Check rchistogramImplBasic
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1126,7 +1126,7 @@ template rchistogram(CountType, alias Axis, AxisOptions axisOptions = AxisOption
 }
 
 /// Integral Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1159,7 +1159,7 @@ unittest
 }
 
 /// Regular Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1192,7 +1192,7 @@ unittest
 }
 
 /// Transform Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1251,7 +1251,7 @@ unittest
 }
 
 /// Enum Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1281,7 +1281,7 @@ unittest
 }
 
 /// Category Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1317,7 +1317,7 @@ unittest
 }
 
 /// Variable Axis example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1344,7 +1344,7 @@ unittest
 }
 
 // Explicit regular-axis types preserve their counter type and flow options.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1366,7 +1366,7 @@ unittest
 }
 
 // Explicit transform-axis types retain the custom transform and inverse.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1385,7 +1385,7 @@ unittest
 }
 
 // Explicit variable-axis types accept identical and different iterator types.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1420,7 +1420,7 @@ unittest
 }
 
 // Other explicit-axis overloads use the same template-instance matching.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {

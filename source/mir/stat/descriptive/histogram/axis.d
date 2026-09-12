@@ -196,7 +196,7 @@ public:
 
 
 // Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -226,7 +226,7 @@ unittest
 }
 
 // Complete checks
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -479,7 +479,7 @@ public:
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -502,7 +502,7 @@ unittest
 }
 
 // Fractional lower bounds
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -517,7 +517,7 @@ unittest
 }
 
 // With isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -536,7 +536,7 @@ unittest
 }
 
 // Some more tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -551,7 +551,7 @@ unittest
 }
 
 // integral test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -564,7 +564,7 @@ unittest
 }
 
 // integral test, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -577,7 +577,7 @@ unittest
 }
 
 // integral test, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -589,7 +589,7 @@ unittest
 }
 
 // integral test, isRightClosed = true, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -701,7 +701,7 @@ template integralAxis(alias breakFunction, AxisOptions axisOptions = AxisOptions
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -717,7 +717,7 @@ unittest
 }
 
 /// Example with break function
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -738,7 +738,7 @@ unittest
 }
 
 // Check number of bins
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -985,7 +985,7 @@ public:
 }
 
 /// Shared boundaries determine membership even when normalization loses precision.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1004,7 +1004,7 @@ unittest
 }
 
 /// Basic tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1028,7 +1028,7 @@ unittest
 }
 
 // isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1041,7 +1041,7 @@ unittest
 }
 
 // isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1054,7 +1054,7 @@ unittest
 }
 
 // isRightClosed = true, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1068,7 +1068,7 @@ unittest
 }
 
 // Some more tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1085,7 +1085,7 @@ unittest
 }
 
 // Double N_bin
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1107,7 +1107,7 @@ unittest
 }
 
 // Double N_bin, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1233,7 +1233,7 @@ template regularAxis(alias breakFunction, AxisOptions axisOptions = AxisOptions(
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1249,7 +1249,7 @@ unittest
 }
 
 /// Example with break function
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1270,7 +1270,7 @@ unittest
 }
 
 // Check number of bins
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1452,7 +1452,7 @@ public:
 }
 
 /// Transformed lookup follows displayed boundaries in the original input space.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1475,7 +1475,7 @@ unittest
 }
 
 /// Basic tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1514,7 +1514,7 @@ unittest
 }
 
 // isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1533,7 +1533,7 @@ unittest
 }
 
 // isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1552,7 +1552,7 @@ unittest
 }
 
 // isRightClosed = true, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1572,7 +1572,7 @@ unittest
 }
 
 // Some more tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1595,7 +1595,7 @@ unittest
 }
 
 // Double N_bin
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1624,7 +1624,7 @@ unittest
 }
 
 // Double N_bin
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1652,7 +1652,7 @@ unittest
 }
 
 // Check bin
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1675,7 +1675,7 @@ unittest
 }
 
 // Additional bin tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1742,7 +1742,7 @@ template inverseTransformMapping(alias transform)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1799,7 +1799,7 @@ template hasInverseTransformMapping(alias transform)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2119,7 +2119,7 @@ template transformAxis(alias transform, alias breakFunction, AxisOptions axisOpt
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2143,7 +2143,7 @@ unittest
 }
 
 /// Example with break function
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -2175,7 +2175,7 @@ unittest
 }
 
 // Check number of bins
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -2191,7 +2191,7 @@ unittest
 }
 
 // Check all inverseTransform mappings
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2213,7 +2213,7 @@ unittest
 }
 
 // test string and lambda functions
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2264,7 +2264,7 @@ unittest
 }
 
 // test string and lambda functions with breaks
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -2424,7 +2424,7 @@ struct EnumAxis(CountT, BinT)
 }
 
 // Exercise both enum lookup fallbacks and their bounds checks.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -2468,7 +2468,7 @@ unittest
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2494,7 +2494,7 @@ unittest
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2520,7 +2520,7 @@ unittest
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2567,7 +2567,7 @@ EnumAxis!(DefaultCountType, BinType) enumAxis(BinType)()
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2696,7 +2696,7 @@ struct CategoryAxis(CountT, BinT, AxisOptions axisOptions)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2732,7 +2732,7 @@ unittest
 }
 
 // Check that assert thrown when string input does not match enum
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -2774,7 +2774,7 @@ CategoryAxis!(DefaultCountType, BinType, axisOptions)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -2946,7 +2946,7 @@ public:
 }
 
 // Variable-axis indices use CountType for both interval conventions.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -2969,7 +2969,7 @@ unittest
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3007,7 +3007,7 @@ unittest
 }
 
 // With isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3036,7 +3036,7 @@ unittest
 }
 
 // Some more tests
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3061,7 +3061,7 @@ unittest
 }
 
 // integral test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3084,7 +3084,7 @@ unittest
 }
 
 // integral test, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3107,7 +3107,7 @@ unittest
 }
 
 // integral test, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3129,7 +3129,7 @@ unittest
 }
 
 // integral test, isRightClosed = true, isCircular = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3219,7 +3219,7 @@ template variableAxis(AxisOptions axisOptions = AxisOptions())
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3245,7 +3245,7 @@ unittest
 
 
 // RC-backed lookups remain safe under DIP1000 and retain their break storage.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -3286,7 +3286,7 @@ unittest
 }
 
 // Valid observations near endpoints must always map to ordinary bins.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3325,7 +3325,7 @@ unittest
 }
 
 // Integral endpoints must not truncate the count or overflow during addition.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -3354,7 +3354,7 @@ unittest
 }
 
 // Reject malformed axes at construction, before indexing or allocation.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -3384,7 +3384,7 @@ unittest
 }
 
 // Extreme endpoint observations retain their bins and flow classification.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3457,7 +3457,7 @@ unittest
 }
 
 // Reject invalid extreme configurations and NaN observations before updating counts.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import std.meta: AliasSeq;
@@ -3482,7 +3482,7 @@ unittest
 
 // Independently scan public bin descriptions to check boundary lookup. This
 // deliberately does not use the normalized candidate or the binary-search helper.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 private void checkBoundaryMembership(Axis)(ref Axis axis) @safe pure nothrow @nogc
 {
     import std.math: nextUp, nextDown;
@@ -3537,7 +3537,7 @@ private void checkBoundaryMembership(Axis)(ref Axis axis) @safe pure nothrow @no
 }
 
 // Wide and narrow intervals, neighboring representable values, and both closures.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3574,7 +3574,7 @@ unittest
 }
 
 // Forward-transform estimates are checked against inverse-transformed edges.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -3596,7 +3596,7 @@ unittest
 }
 
 // Reject collapsed rounded grids, including collapse caused by the inverse transform.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;

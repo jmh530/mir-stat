@@ -116,7 +116,7 @@ template isAxis(T)
 }
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -153,7 +153,7 @@ template hasAxisOptions(T)
 }
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -172,7 +172,7 @@ unittest
 }
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -201,7 +201,7 @@ enum bool isEnumAxis(T) = is(T : EnumAxis!(CountType, BinType), CountType, BinTy
 enum bool isCategoryAxis(T) = is(T : CategoryAxis!(CountType, BinType, axisOptions), CountType, BinType, AxisOptions axisOptions);
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -265,7 +265,7 @@ template BinTypeOf(T)
 }
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -292,7 +292,7 @@ template CountTypeOf(T)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -331,7 +331,7 @@ template isBreakFunction(alias breakFunction)
 }
 
 /// Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {

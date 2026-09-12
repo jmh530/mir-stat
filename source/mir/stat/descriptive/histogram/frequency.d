@@ -344,7 +344,7 @@ struct FrequencyAccumulator(Storage, AxisType)
 }
 
 /// Collect observations, inspect counts, and read relative frequencies.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -367,7 +367,7 @@ unittest
 }
 
 /// Choose the frequency output type without changing the accumulator.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -384,7 +384,7 @@ unittest
 }
 
 /// Read cumulative frequencies in bin order and choose the output type.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -408,7 +408,7 @@ unittest
 }
 
 /// Collect all cumulative frequencies in an independent snapshot.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -429,7 +429,7 @@ unittest
 }
 
 /// Reuse output storage and infer precision from its element type.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -456,7 +456,7 @@ unittest
 }
 
 /// Select a snapshot output type and include flow counts in the calculation.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -480,7 +480,7 @@ unittest
 }
 
 /// Cumulative frequencies include underflow but leave overflow beyond the last bin.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -500,7 +500,7 @@ unittest
 }
 
 /// Enabled flow bins contribute to the total used by all frequencies.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -523,7 +523,7 @@ unittest
 }
 
 /// Empty accumulators return NaN; unoccupied bins in nonempty ones return zero.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -541,7 +541,7 @@ unittest
 }
 
 /// Initialize from existing reference-counted storage and merge another total.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -568,7 +568,7 @@ unittest
 }
 
 // Construction, insertion, and merging with array and reference-counted storage.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -629,7 +629,7 @@ unittest
 }
 
 // No-flow axes and category strings use the same counting paths.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -655,7 +655,7 @@ unittest
 }
 
 // Rejected input must not inflate the total; a partially accepted range stays consistent.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -677,7 +677,7 @@ unittest
 }
 
 // Custom axes can provide flow predicates without an AxisOptions member.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -707,7 +707,7 @@ unittest
 }
 
 // Frequencies use current totals, including flows, for all supported output types.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -772,7 +772,7 @@ unittest
 }
 
 // Cumulative reads cover all flow options, storage types, and floating outputs.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -833,7 +833,7 @@ unittest
 }
 
 // Snapshot values match scalar access for every flow option and output type.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -905,7 +905,7 @@ unittest
 }
 
 // Destination precision, strided storage, const sources, and allocation-free writes.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -946,7 +946,7 @@ unittest
 }
 
 // Invalid destinations are rejected, with length checked before any writes.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -980,7 +980,7 @@ unittest
 }
 
 // Owning snapshots can escape a local accumulator even with DIP1000 enabled.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1001,7 +1001,7 @@ unittest
 }
 
 // Invalid bin indices remain errors even when the total is zero.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -1160,7 +1160,7 @@ struct FrequencyBinView(Storage, AxisType, FrequencyType = double)
 }
 
 /// Iterate over ordinary bins with their counts and relative frequencies.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
@@ -1178,7 +1178,7 @@ unittest
 }
 
 /// Select an output type independently of the accumulator.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
@@ -1191,7 +1191,7 @@ unittest
 }
 
 /// Const views share live counts and totals while cursors move independently.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
@@ -1228,7 +1228,7 @@ unittest
 }
 
 // Runtime behavior is identical with and without escape checking.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.ndslice.allocation: rcslice;
@@ -1294,7 +1294,7 @@ unittest
 }
 
 // Bin descriptions work across all built-in axis types.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: IntegralAxis, RegularAxis,
@@ -1334,7 +1334,7 @@ unittest
 }
 
 // Assertions catch malformed use, but do not claim to detect dangling pointers.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -1366,7 +1366,7 @@ unittest
 }
 
 // The API cannot be called from @safe code without the required escape checking.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: IntegralAxis, AxisOptions;
@@ -1387,7 +1387,7 @@ unittest
 }
 
 // This version selects tests, never the production safety annotation.
-version(mir_stat_test_hist_lifetime)
+version(mir_stat_test_lifetime)
 {
     static assert(hasBorrowEscapeChecking,
         "Histogram lifetime tests require -preview=dip1000 escape checking");
@@ -1501,7 +1501,7 @@ version(mir_stat_test_hist_lifetime)
 }
 
 // Frequency reads, merges, and owning cumulative snapshots remain @nogc.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
@@ -1535,7 +1535,7 @@ unittest
 }
 
 // Borrowed-view traversal is @nogc with either compiler escape-checking mode.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @nogc unittest
 {
     import mir.ndslice.allocation: rcslice;
@@ -1567,7 +1567,7 @@ version(mir_stat_test_hist)
 }
 
 // Variadic frequency insertion validates every type and counts every observation.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1601,7 +1601,7 @@ unittest
 }
 
 // A rejected batch element preserves the counts and total of earlier insertions.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;

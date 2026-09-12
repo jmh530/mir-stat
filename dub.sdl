@@ -15,7 +15,7 @@ configuration "library" {
 }
 buildType "unittest" {
     buildOptions "unittests" "debugMode" "debugInfo"
-    versions "mir_stat_test_hist" "mir_stat_test_bultincomplex"
+    versions "mir_stat_test" "mir_stat_test_bultincomplex"
     dflags "-lowmem"
 }
 configuration "unittest-perf" {
@@ -36,12 +36,12 @@ buildType "unittest-dip1008" {
 }
 buildType "unittest-dip1000" {
     buildOptions "unittests" "debugMode" "debugInfo"
-    versions "mir_stat_test_hist" "mir_stat_test_hist_lifetime"
+    versions "mir_stat_test" "mir_stat_test_lifetime"
     dflags "-lowmem" "-preview=dip1000"
 }
 buildType "unittest-cov" {
     buildOptions "unittests" "coverage" "debugMode" "debugInfo"
-    versions "mir_stat_test_hist" "mir_stat_test_bultincomplex"
+    versions "mir_stat_test" "mir_stat_test_bultincomplex"
     dflags "-lowmem"
 }
 buildType "unittest-release" {

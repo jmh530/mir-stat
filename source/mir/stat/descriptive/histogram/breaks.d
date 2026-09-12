@@ -83,7 +83,7 @@ size_t sturges(T)(T x)
 }
 
 ///
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -163,7 +163,7 @@ template binsFromWidth(CountType)
 }
 
 /// binsFromWidth example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -177,7 +177,7 @@ unittest
 }
 
 // withAsSlice test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -196,7 +196,7 @@ unittest
 }
 
 // dynamic array test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -282,7 +282,7 @@ template scott(VarianceAlgo varianceAlgo = VarianceAlgo.online)
 }
 
 /// Scott example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -299,7 +299,7 @@ unittest
 }
 
 // withAsSlice test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -316,7 +316,7 @@ unittest
 }
 
 // dynamic array test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -475,7 +475,7 @@ template freedmanDiaconis(QuantileAlgo quantileAlgo = QuantileAlgo.type7,
 }
 
 /// freedmanDiaconis Example
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -492,7 +492,7 @@ unittest
 }
 
 // Test example vs. R in extreme case
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -508,7 +508,7 @@ unittest
 }
 
 // withAsSlice test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -525,7 +525,7 @@ unittest
 }
 
 // dynamic array test
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -538,7 +538,7 @@ unittest
 }
 
 // Break selection can use reference-counted working storage without the GC.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {

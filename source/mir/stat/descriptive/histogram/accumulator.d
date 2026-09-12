@@ -108,14 +108,6 @@ struct HistogramAccumulator(Storage, Axis...)
     import mir.primitives: hasShape, DeepElementType;
     import mir.stat.descriptive.histogram.traits: includeOverflow, includeUnderflow,
         BinTypeOf, isCategoryAxis, acceptsAxisValue;
-// isRandomAccessRange for storage does not work for single value
-//isRandomAccessRange!Storage &&
-//        __traits(compiles, {alias deepElementType = DeepElementType!(Storage);})&&
-
-//1) Need to handle template constraints properly
-//2) over/underflow is not currently handling multiple axes properly, just checking the first axis
-//need to do any allow over/underflow, then just put them all
-//3) Need to be able to put another dense storage
 private:
     static if (anySatisfy!(includeOverflow, Axis))
     {
@@ -348,7 +340,7 @@ public:
 }
 
 // Check IntegralAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -365,7 +357,7 @@ unittest
 }
 
 // Check over/underflow IntegralAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -400,7 +392,7 @@ unittest
 }
 
 // Check over/underflow IntegralAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -420,7 +412,7 @@ unittest
 }
 
 // Check EnumAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -441,7 +433,7 @@ unittest
 }
 
 // Check CategoryAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -473,7 +465,7 @@ unittest
 }
 
 // Check RegularAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -490,7 +482,7 @@ unittest
 }
 
 // Check over/underflow RegularAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -513,7 +505,7 @@ unittest
 }
 
 // Check RegularAxis, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -530,7 +522,7 @@ unittest
 }
 
 // Check over/underflow RegularAxis, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -553,7 +545,7 @@ unittest
 }
 
 // Check TransformAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -571,7 +563,7 @@ unittest
 }
 
 // Check over/underflow TransformAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -595,7 +587,7 @@ unittest
 }
 
 // Check Transform, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -613,7 +605,7 @@ unittest
 }
 
 // Check over/underflow TransformAxis, isRightClosed = true
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -637,7 +629,7 @@ unittest
 }
 
 // Check VariableAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -656,7 +648,7 @@ unittest
 }
 
 // Check over/underflow VariableAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -681,7 +673,7 @@ unittest
 }
 
 // Check put HistogramAccumulator
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -703,7 +695,7 @@ unittest
 }
 
 // Check put HistogramAccumulator with over/underflow
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -725,7 +717,7 @@ unittest
 }
 
 // Check custom CircleAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -768,7 +760,7 @@ unittest
 }
 
 // Check Multiple IntegralAxis
-version(mir_stat_test_hist)
+version(mir_stat_test)
 //@safe pure nothrow
 unittest
 {
@@ -797,7 +789,7 @@ unittest
 }
 
 // Circular endpoints must reach indexing even when flow counters are enabled.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -995,7 +987,7 @@ struct HistogramBinView(Storage, Axis)
 }
 
 /// Iterate over numeric bins alongside their counts.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1016,7 +1008,7 @@ unittest
 }
 
 /// Index and slice a view without losing the original bin indices.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1035,7 +1027,7 @@ unittest
 }
 
 /// Category bins expose a slot instead of interval boundaries.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1054,7 +1046,7 @@ unittest
 }
 
 /// Saved views have independent positions and share subsequent count updates.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1080,7 +1072,7 @@ unittest
 }
 
 /// Const access preserves live counts while allowing independent traversal.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1116,7 +1108,7 @@ unittest
 }
 
 // Range semantics and sharing for both supported owning storage forms.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1166,7 +1158,7 @@ unittest
 }
 
 // All built-in axes preserve their existing bin descriptions.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1223,7 +1215,7 @@ unittest
 }
 
 // Invalid access and incompatible input are rejected.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -1260,7 +1252,7 @@ unittest
 }
 
 // Const sources produce mutable cursors over read-only storage handles.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1313,7 +1305,7 @@ unittest
 }
 
 // Both count and break ownership survive a const source and saved/sliced views.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1344,7 +1336,7 @@ unittest
 }
 
 // Additional storage forms keep const data readable and traversal independent.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import mir.ndslice.slice: Slice, SliceKind;
@@ -1367,7 +1359,7 @@ unittest
 }
 
 // Custom axes must provide an ownership-preserving const conversion when needed.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1401,7 +1393,7 @@ unittest
 }
 
 // One axis accepts variadic batches; multiple axes require one coordinate each.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
@@ -1436,7 +1428,7 @@ unittest
 }
 
 // Validate storage shape before accepting an accumulator.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 unittest
 {
     import core.exception: AssertError;
@@ -1453,7 +1445,7 @@ unittest
 }
 
 // Construction, insertion, merging, and view traversal need no GC allocation.
-version(mir_stat_test_hist)
+version(mir_stat_test)
 @safe pure nothrow @nogc
 unittest
 {
