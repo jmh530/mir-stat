@@ -35,7 +35,7 @@ Params:
 Returns:
     The number of breaks
 
-See_also: 
+See_also:
     $(LREF scott),
     $(LREF freedmanDiaconis),
     $(WEB en.wikipedia.org/wiki/Histogram, Histogram)
@@ -118,7 +118,7 @@ Returns:
 
 See_also:
     $(LREF scott),
-    $(LREF struges),
+    $(LREF sturges),
     $(LREF freedmanDiaconis),
     $(WEB en.wikipedia.org/wiki/Histogram, Histogram)
 +/
@@ -131,7 +131,8 @@ template binsFromWidth(CountType)
 
     /++
     Params:
-        slice = slice
+        slice = input observations
+        h = positive, finite bin width
     +/
     CountType binsFromWidth(Iterator, size_t N, SliceKind kind, H)(
         Slice!(Iterator, N, kind) slice, H h)
@@ -197,7 +198,8 @@ template binsFromWidth(CountType)
 
     /++
     Params:
-        array = array
+        array = input observations
+        h = positive, finite bin width
     +/
     CountType binsFromWidth(T, H)(T[] array, H h)
         if (isFloatingPoint!(Unqual!T) || isIntegral!(Unqual!T))
@@ -209,7 +211,8 @@ template binsFromWidth(CountType)
 
     /++
     Params:
-        withAsSlice = withAsSlice
+        withAsSlice = input observations exposed through asSlice
+        h = positive, finite bin width
     +/
     CountType binsFromWidth(T, H)(T withAsSlice, H h)
         if (hasAsSlice!T)
@@ -280,8 +283,8 @@ Params:
 Returns:
     The number of breaks
 
-See_also: 
-    $(LREF struges),
+See_also:
+    $(LREF sturges),
     $(LREF freedmanDiaconis),
     $(LREF binsFromWidth),
     $(WEB en.wikipedia.org/wiki/Histogram, Histogram)
@@ -317,7 +320,6 @@ template scott(CountType, VarianceAlgo varianceAlgo = VarianceAlgo.online)
 
 /++
 Params:
-    CountType = the type that is used to count in histogram bins
     varianceAlgo = Algorithm used to calculate variance
 +/
 template scott(VarianceAlgo varianceAlgo = VarianceAlgo.online)
@@ -405,8 +407,8 @@ Params:
 Returns:
     The number of breaks
 
-See_also: 
-    $(LREF struges),
+See_also:
+    $(LREF sturges),
     $(LREF freedmanDiaconis),
     $(LREF binsFromWidth),
     $(WEB en.wikipedia.org/wiki/Histogram, Histogram)

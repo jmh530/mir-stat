@@ -28,15 +28,15 @@ struct DenseStorage(Storage)
 {
     import std.traits: isNumeric;
 
-    Storage storage; 
-    
+    Storage storage;
+
     void put(size_t i = 0)(size_t x)
         if (is(Storage : T[], T) ||
             is(Storage : T[N], T, size_t N))
     {
         storage[i]++;
     }
-    
+
     void put(size_t i = 0)(size_t x)
         if (isNumeric!Storage)
     {
@@ -165,7 +165,7 @@ public:
 
     ///
     alias CountType = DeepElementType!Storage;
-    
+
     static if (anySatisfy!(includeOverflow, Axis))
     {
         ///
@@ -203,8 +203,8 @@ public:
 
     ///
     void put(Range)(Range r)
-        if (N == 1 && 
-            isIterable!Range && 
+        if (N == 1 &&
+            isIterable!Range &&
             !(isCategoryAxis!(Axis[0]) && isSomeString!Range))
     {
         foreach(x; r)
@@ -699,7 +699,7 @@ version(mir_stat_test)
 @safe pure nothrow
 unittest
 {
-    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis, 
+    import mir.stat.descriptive.histogram.axis: AxisOptions, IntegralAxis,
         EnableOverflow, EnableUnderflow;
 
     auto integralAxis1 = IntegralAxis!(size_t, double, AxisOptions(EnableOverflow(true), EnableUnderflow(true)))(5, 2.0);
@@ -722,7 +722,7 @@ version(mir_stat_test)
 unittest
 {
     import mir.stat.descriptive.histogram.axis: AxisOptions;
-    
+
     struct Point
     {
         double x;
@@ -777,10 +777,10 @@ unittest
     assert(counts[1] == [0, 0, 1, 0, 0, 0]);
 
     //h.put([2.0, 2.5, 3.0, 3.5], [3.0, 3.5, 4.0, 4.5]);
-    
+
     //import std.stdio: writeln;
     //writeln(counts);
-    //several aspects of HistogramAccumulator are only working with one axis (Axis[0]). 
+    //several aspects of HistogramAccumulator are only working with one axis (Axis[0]).
     //need to start by getting put to work properly
     //h.put([2.0, 2.5, 3.0, 3.5]);
     //assert(counts == [2, 2, 0, 0, 0]);

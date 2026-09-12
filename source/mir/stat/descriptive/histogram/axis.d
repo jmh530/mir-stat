@@ -58,10 +58,10 @@ struct AxisOptions
 private:
 
     /++
-    Axis breaks are assumed to be non-overlappying. If `isRightClosed` equals
+    Axis breaks are assumed to be non-overlapping. If `isRightClosed` equals
     `false` (default), then calculations assume the axis is left-closed and
-    right-opened, as in `[a, b)` or `a <= x < b`; otherwise, if `isRightClosed`
-    equals `true`, then the calculations assumeaxis is left-open and
+    right-open, as in `[a, b)` or `a <= x < b`; otherwise, if `isRightClosed`
+    equals `true`, then the calculations assume the axis is left-open and
     right-closed, as in `(a, b]` or `a < x <= b`.
     +/
     IsRightClosed value_isRightClosed = IsRightClosed();
@@ -71,13 +71,13 @@ private:
 
     ///
     EnableUnderflow value_enableUnderflow = EnableUnderflow();
-    
+
     /++
     Breaks are assumed to not wrap-around by default. If `isCircular` equals
     `true`, then the axis is circular and will wrap around. For instance, if the
-    breaks are `[a, b)` and `[b, c)` then a value of `x = c` will be placed 
-    into the first break instead of overflow (assuming it is enabled). One 
-    use-case of circular breaks is data in polar coordinates. 
+    breaks are `[a, b)` and `[b, c)` then a value of `x = c` will be placed
+    into the first break instead of overflow (assuming it is enabled). One
+    use-case of circular breaks is data in polar coordinates.
     +/
     IsCircular value_isCircular = IsCircular();
 
@@ -217,7 +217,7 @@ unittest
     x5.set!EnableUnderflow(true);
     assert(x5.get!EnableOverflow == EnableOverflow(true));
     assert(x5.get!EnableUnderflow == EnableUnderflow(true));
-    
+
     AxisOptions x6 = AxisOptions(true, true, true, true);
     assert(x6.isRightClosed == true);
     assert(x6.enableOverflow == true);
@@ -261,7 +261,7 @@ unittest
     x5.set!EnableUnderflow(true);
     assert(x5.get!EnableOverflow == EnableOverflow(true));
     assert(x5.get!EnableUnderflow == EnableUnderflow(true));
-    
+
     AxisOptions x6 = AxisOptions(true);
     assert(x6.isRightClosed == true);
     assert(x6.enableOverflow == false);
@@ -316,13 +316,13 @@ struct Bin(T)
     {
         return _payload[0];
     }
-    
+
     ///
     DeepElementType!T high()() const
     {
         return _payload[1];
     }
-    
+
     this(Iterator)(Slice!Iterator x)
     {
         assert(x.length == 2);
@@ -369,7 +369,7 @@ public:
 
     ///
     alias BinType = BinT;
-    
+
     ///
     alias options = axisOptions;
 
@@ -505,12 +505,12 @@ unittest
     assert(!integralAxis.isUnderflow(5.0));
     assert(integralAxis.isOverflow(13.0));
     assert(integralAxis.isUnderflow(1.0));
-    
+
     assert(integralAxis.index(2.0) == 0);
     assert(integralAxis.index(2.5) == 0);
     assert(integralAxis.index(3.0) == 1);
     assert(integralAxis.index(11.5) == 9);
-    
+
     assert(integralAxis.bin(0) == Bin!double(2.0, 3.0));
     assert(integralAxis.bin(1) == Bin!double(3.0, 4.0));
     assert(integralAxis.bin(9) == Bin!double(11.0, 12.0));
@@ -582,7 +582,7 @@ version(mir_stat_test)
 unittest
 {
     auto integralAxis = IntegralAxis!(size_t, double, AxisOptions())(10, 2.0);
-    
+
     assert(integralAxis.index(3.5) == 1);
     assert(integralAxis.index(4.0) == 2);
     assert(integralAxis.index(4.5) == 2);
@@ -623,7 +623,7 @@ version(mir_stat_test)
 unittest
 {
     auto integralAxis = IntegralAxis!(size_t, int, AxisOptions(IsCircular(true)))(10, 2);
-    
+
     assert(integralAxis.index(2) == 0);
     assert(integralAxis.index(5) == 3);
     assert(integralAxis.index(12) == 0);
@@ -635,7 +635,7 @@ version(mir_stat_test)
 unittest
 {
     auto integralAxis = IntegralAxis!(size_t, int, AxisOptions(IsRightClosed(true), IsCircular(true)))(10, 2);
-    
+
     assert(integralAxis.index(2) == 9);
     assert(integralAxis.index(5) == 2);
     assert(integralAxis.index(12) == 9);
@@ -660,7 +660,7 @@ IntegralAxis!(CountType, BinType, axisOptions)
 /++
 Params:
     BinType = the type of the values that are compared in histogram bins
-    breakFunction = function used to determine breaks
+    axisOptions = options
 +/
 IntegralAxis!(DefaultCountType, BinType, axisOptions)
     integralAxis(BinType, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low)
@@ -893,7 +893,7 @@ public:
 
     ///
     alias BinType = BinT;
-    
+
     ///
     alias options = axisOptions;
 
@@ -1057,7 +1057,7 @@ unittest
     assert(!regularAxis.isUnderflow(5.0));
     assert(regularAxis.isOverflow(13.0));
     assert(regularAxis.isUnderflow(1.0));
-    
+
     assert(regularAxis.index(2.0) == 0);
     assert(regularAxis.index(2.5) == 0);
     assert(regularAxis.index(3.0) == 1);
@@ -1131,7 +1131,7 @@ version(mir_stat_test)
 unittest
 {
     auto regularAxis = RegularAxis!(size_t, double, AxisOptions())(20, 2.0, 12.0);
-    
+
     assert(regularAxis.index(2.0) == 0);
     assert(regularAxis.index(2.25) == 0);
     assert(regularAxis.index(2.5) == 1);
@@ -1189,7 +1189,7 @@ RegularAxis!(CountType, BinType, axisOptions)
 /++
 Params:
     BinType = the type of the values that are compared in histogram bins
-    breakFunction = function used to determine breaks
+    axisOptions = options
 +/
 RegularAxis!(DefaultCountType, BinType, axisOptions)
     regularAxis(BinType, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low, BinType high)
@@ -1347,7 +1347,7 @@ See_also:
     $(LREF CategoryAxis),
     $(LREF VariableAxis)
 +/
-struct TransformAxis(CountT, BinT, alias transform, alias inverseTransform, AxisOptions axisOptions)  
+struct TransformAxis(CountT, BinT, alias transform, alias inverseTransform, AxisOptions axisOptions)
 {
     import mir.math.common: fmamath;
 
@@ -1368,7 +1368,7 @@ public:
 
     ///
     alias BinType = BinT;
-    
+
     ///
     alias options = regularAxis.options;
 
@@ -1535,7 +1535,7 @@ unittest
     assert(!transformAxis.isUnderflow(10.0 ^^ 5.0));
     assert(transformAxis.isOverflow(10.0 ^^ 13.0));
     assert(transformAxis.isUnderflow(10.0 ^^ 1.0));
-    
+
     assert(transformAxis.index(10.0 ^^ 2.0) == 0);
     assert(transformAxis.index(10.0 ^^ 2.5) == 0);
     assert(transformAxis.index(10.0 ^^ 3.0) == 1);
@@ -1698,7 +1698,7 @@ version(mir_stat_test)
 unittest
 {
     import mir.math.common: log10;
-    
+
     double inverseLog10(double x) {
         return 10.0 ^^ x;
     }
@@ -1743,8 +1743,8 @@ private T square(T)(T x) {
 /++
 Provides a built-in inverse to a $(LREF transform) function.
 
-The following functions are supported: $(MATHREF common, exp), $(MATHREF common, exp2), 
-$(MATHREF common, log), $(MATHREF common, log2), $(MATHREF common, log10), 
+The following functions are supported: $(MATHREF common, exp), $(MATHREF common, exp2),
+$(MATHREF common, log), $(MATHREF common, log2), $(MATHREF common, log10),
 $(MATHREF common, sqrt).
 
 Params:
@@ -1800,7 +1800,7 @@ unittest
 /++
 Check that an inverse function is provided by default for $(LREF transform).
 
-The following functions are supported: $(MATHREF common, exp), 
+The following functions are supported: $(MATHREF common, exp),
 $(MATHREF common, exp2), $(MATHREF common, log), $(MATHREF common, log2),
 $(MATHREF common, log10), $(MATHREF common, sqrt).
 
@@ -1891,7 +1891,7 @@ See_also:
 +/
 TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)
     transformAxis(CountType, BinType, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())(CountType N_bin, BinType low, BinType high)
-        if (isTransformFunction!(transform, BinType) && 
+        if (isTransformFunction!(transform, BinType) &&
             isTransformFunction!(inverseTransform, BinType))
 {
     return TransformAxis!(CountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
@@ -1922,7 +1922,7 @@ Params:
 +/
 TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)
     transformAxis(BinType, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())(DefaultCountType N_bin, BinType low, BinType high)
-        if (isTransformFunction!(transform, BinType) && 
+        if (isTransformFunction!(transform, BinType) &&
             isTransformFunction!(inverseTransform, BinType))
 {
     return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
@@ -1958,7 +1958,7 @@ template transformAxis(alias transform, alias inverseTransform, AxisOptions axis
     +/
     TransformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)
         transformAxis(BinType)(DefaultCountType N_bin, BinType low, BinType high)
-            if (isTransformFunction!(transform, BinType) && 
+            if (isTransformFunction!(transform, BinType) &&
                 isTransformFunction!(inverseTransform, BinType))
     {
         return .transformAxis!(DefaultCountType, BinType, transform, inverseTransform, axisOptions)(N_bin, low, high);
@@ -1997,8 +1997,8 @@ Params:
     axisOptions = options
 +/
 template transformAxis(CountType, BinType, alias transform, alias inverseTransform, alias breakFunction, AxisOptions axisOptions = AxisOptions())
-    if (isTransformFunction!(transform, BinType) && 
-        isTransformFunction!(inverseTransform, BinType) && 
+    if (isTransformFunction!(transform, BinType) &&
+        isTransformFunction!(inverseTransform, BinType) &&
         isBreakFunction!breakFunction)
 {
     import mir.ndslice.slice: Slice, SliceKind;
@@ -2053,8 +2053,8 @@ Params:
     axisOptions = options
 +/
 template transformAxis(BinType, alias transform, alias inverseTransform, alias breakFunction, AxisOptions axisOptions = AxisOptions())
-    if (isTransformFunction!(transform, BinType) && 
-        isTransformFunction!(inverseTransform, BinType) && 
+    if (isTransformFunction!(transform, BinType) &&
+        isTransformFunction!(inverseTransform, BinType) &&
         isBreakFunction!breakFunction)
 {
     import mir.ndslice.slice: Slice, SliceKind;
@@ -2121,7 +2121,7 @@ template transformAxis(alias transform, alias inverseTransform, alias breakFunct
     +/
     TransformAxis!(DefaultCountType, DeepElementType!(Slice!(Iterator, N, kind)), transform, inverseTransform, axisOptions)
         transformAxis(Iterator, size_t N, SliceKind kind, BinType)(Slice!(Iterator, N, kind) slice, BinType low, BinType high)
-            if (isTransformFunction!(transform, BinType) && 
+            if (isTransformFunction!(transform, BinType) &&
                 isTransformFunction!(inverseTransform, BinType) &&
                 is(BinType : DeepElementType!(Slice!(Iterator, N, kind))))
     {
@@ -2153,7 +2153,7 @@ template transformAxis(alias transform, alias breakFunction, AxisOptions axisOpt
             if (is(BinType : DeepElementType!(Slice!(Iterator, N, kind))))
     {
         import core.lifetime: move;
-        
+
         alias inverseTransform = inverseTransformMapping!transform;
         return .transformAxis!(DefaultCountType, DeepElementType!(Slice!(Iterator, N, kind)), transform, inverseTransform, breakFunction, axisOptions)(slice.move, low, high);
     }
@@ -2393,7 +2393,7 @@ struct EnumAxis(CountT, BinT)
 
         return EnumMembers!(BinType).length;
     }
-    
+
     ///
     CountType index()(BinType value) const
     {
@@ -2422,7 +2422,7 @@ struct EnumAxis(CountT, BinT)
             assert(0, "EnumAxis.index: value is not an enum member");
         }
     }
-    
+
     ///
     Bin!BinType bin(size_t x)() const
     {
@@ -2620,14 +2620,14 @@ unittest
     }
     auto x0 = enumAxis!(size_t, Foo);
     auto x1 = enumAxis!Foo;
-    
+
     static assert(is(typeof(x0) == EnumAxis!(size_t, Foo)));
     static assert(is(typeof(x1) == EnumAxis!(DefaultCountType, Foo)));
 }
 
 /++
 Axis similar to EnumAxis, but allows for overflow for when a string is passed
-that does not match with enum members of `BinT`. 
+that does not match with enum members of `BinT`.
 
 Params:
     CountT = the type that is used to count in histogram bins
@@ -2683,7 +2683,7 @@ struct CategoryAxis(CountT, BinT, AxisOptions axisOptions)
         }
         catch (Exception e)
         {
-            assert(0, "CategoryAxis.index: string value does not convert to enum, index is invalid here, increment overflow instead");   
+            assert(0, "CategoryAxis.index: string value does not convert to enum, index is invalid here, increment overflow instead");
         }
     }
 
@@ -2702,7 +2702,7 @@ struct CategoryAxis(CountT, BinT, AxisOptions axisOptions)
     ///
     bool isOverflow()(BinType value) const
     {
-        return false;    
+        return false;
     }
 
     ///
@@ -2752,11 +2752,11 @@ unittest
     assert(categoryAxis.index(Foo.A) == 0);
     assert(categoryAxis.index(Foo.B) == 1);
     assert(categoryAxis.index(Foo.C) == 2);
- 
+
     assert(categoryAxis.index("A") == 0);
     assert(categoryAxis.index("B") == 1);
     assert(categoryAxis.index("C") == 2);
-    
+
     assert(categoryAxis.N_bin == 3);
 
     assert(categoryAxis.bin(0) == Bin!Foo(Foo.A));
@@ -2786,7 +2786,7 @@ unittest
         C
     }
     CategoryAxis!(size_t, Foo, AxisOptions()) categoryAxis;
-    
+
     assertThrown!AssertError(categoryAxis.index("D"));
 }
 
@@ -2866,7 +2866,7 @@ public:
 
     ///
     alias BinType = DeepElementType!(Slice!(Iterator));
-    
+
     ///
     alias options = axisOptions;
 

@@ -20,14 +20,14 @@ module mir.stat.descriptive.histogram.api.rc;
 import mir.ndslice.slice: Slice, SliceKind;
 import mir.rc.array: RCI;
 import mir.stat.descriptive.histogram.accumulator: HistogramAccumulator;
-import mir.stat.descriptive.histogram.axis: AxisOptions, 
+import mir.stat.descriptive.histogram.axis: AxisOptions,
     inverseTransformMapping, hasInverseTransformMapping, isTransformFunction;
 import mir.stat.descriptive.histogram.traits: isAxis;
 
 /++
 Params:
-    slice = slice
-    axis = axis
+    x = input observations
+    axis = axis defining the bins
 +/
 HistogramAccumulator!(Slice!(RCI!(Axis.CountType)), Axis)
     rchistogramImplBasic(Iterator, size_t N, SliceKind kind, Axis)(
@@ -167,8 +167,8 @@ Params:
 +/
 private
 template rchistogramImpl(CountType, BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions)
-    if (__traits(isTemplate, Axis) && 
-        isTransformFunction!(transform, BinType) && 
+    if (__traits(isTemplate, Axis) &&
+        isTransformFunction!(transform, BinType) &&
         isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
@@ -204,7 +204,7 @@ Params:
 +/
 private
 template rchistogramImpl(CountType, BinType, alias Axis, alias transform, AxisOptions axisOptions)
-    if (__traits(isTemplate, Axis) && 
+    if (__traits(isTemplate, Axis) &&
         hasInverseTransformMapping!transform)
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
@@ -423,7 +423,7 @@ template rchistogram(CountType, BinType, alias Axis, AxisOptions axisOptions = A
 
         return .rchistogramImpl!(CountType, BinType, Axis, axisOptions)(slice.move, N_bin, low, high);
     }
-    
+
     /++
     Params:
         slice = slice
@@ -449,7 +449,7 @@ Params:
 +/
 template rchistogram(CountType, BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
     if (__traits(isTemplate, Axis) &&
-        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(transform, BinType) &&
         isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
@@ -586,7 +586,7 @@ template rchistogram(BinType, alias Axis, AxisOptions axisOptions = AxisOptions(
 
         return .rchistogramImpl!(DefaultCountType, BinType, Axis, axisOptions)(slice.move, N_bin, low, high);
     }
-    
+
     /++
     Params:
         slice = slice
@@ -613,12 +613,12 @@ Params:
 +/
 template rchistogram(BinType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
     if (__traits(isTemplate, Axis) &&
-        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(transform, BinType) &&
         isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
     import mir.stat.descriptive.histogram.traits: DefaultCountType;
-    
+
 
     /++
     Params:
@@ -655,7 +655,7 @@ template rchistogram(BinType, alias Axis, alias transform, AxisOptions axisOptio
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
     import mir.stat.descriptive.histogram.traits: DefaultCountType;
-    
+
 
     /++
     Params:
@@ -766,7 +766,7 @@ Params:
 +/
 template rchistogram(CountType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
     if (__traits(isTemplate, Axis) &&
-        isTransformFunction!(transform, BinType) && 
+        isTransformFunction!(transform, BinType) &&
         isTransformFunction!(inverseTransform, BinType))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
@@ -847,7 +847,7 @@ template rchistogram(CountType, alias Axis, AxisOptions axisOptions = AxisOption
         rchistogram(IteratorA, size_t N, SliceKind kindA, IteratorB, SliceKind kindB)(
                    Slice!(IteratorA, N, kindA) dataSlice,
                    Slice!(IteratorB, 1, kindB) axisSlice)
-        if (__traits(isSame, Axis, VariableAxis) && 
+        if (__traits(isSame, Axis, VariableAxis) &&
             is(DeepElementType!(Slice!(IteratorA, N, kindA)) : DeepElementType!(Slice!(IteratorB, 1, kindB))))
     {
         import core.lifetime: move;
@@ -905,7 +905,7 @@ template rchistogram(alias Axis, AxisOptions axisOptions = AxisOptions())
 
         return .rchistogramImpl!(CountType, BinType, Axis, axisOptions)(slice.move, N_bin, low, high);
     }
-    
+
     /++
     Params:
         slice = slice
@@ -974,7 +974,7 @@ template rchistogram(alias Axis, alias transform, alias inverseTransform, AxisOp
             BinType low,
             BinType high)
         if (__traits(isSame, Axis, TransformAxis) &&
-            isTransformFunction!(transform, BinType) && 
+            isTransformFunction!(transform, BinType) &&
             isTransformFunction!(inverseTransform, BinType))
     {
         import core.lifetime: move;
@@ -1037,7 +1037,7 @@ template rchistogram(alias Axis, AxisOptions axisOptions = AxisOptions())
         rchistogram(IteratorA, size_t N, SliceKind kindA, IteratorB, SliceKind kindB)(
                    Slice!(IteratorA, N, kindA) dataSlice,
                    Slice!(IteratorB, 1, kindB) axisSlice)
-        if (__traits(isSame, Axis, VariableAxis) && 
+        if (__traits(isSame, Axis, VariableAxis) &&
             is(DeepElementType!(Slice!(IteratorA, N, kindA)) : DeepElementType!(Slice!(IteratorB, 1, kindB))))
     {
         import core.lifetime: move;
@@ -1202,11 +1202,11 @@ unittest
     import mir.stat.descriptive.histogram.axis: TransformAxis, transformAxis, inverseTransformMapping;
     import mir.stat.descriptive.histogram.breaks: sturges;
 
-    
+
     static immutable a = [10.0 ^^ 2.0, 10.0 ^^ 2.5, 10.0 ^^ 5.0, 10.0 ^^ 11.5];
     static immutable b = [2, 1, 0, 1];
     static immutable c = [3, 0, 1];
-    
+
     auto x = rcslice!double(a);
     auto result1 = rcslice!size_t(b);
     auto result2 = rcslice!size_t(c);
@@ -1219,7 +1219,7 @@ unittest
     auto regularAxis2 = transformAxis!(log10, inverseTransformMapping!log10)(4u, 10.0 ^^ 2.0, 10.0 ^^ 12.0);
     auto h2 = x.rchistogram(regularAxis2);
     assert(h2.counts == result1);
-    
+
     // Use function to calculate N_bin
     auto regularAxis3 = x.transformAxis!(log10, inverseTransformMapping!log10, sturges)(10.0 ^^ 2.0, 10.0 ^^ 12.0);
     auto h3 = x.rchistogram(regularAxis3);
@@ -1242,7 +1242,7 @@ unittest
     auto regularAxis4 = transformAxis!log10(4u, 10.0 ^^ 2.0, 10.0 ^^ 12.0);
     auto h7 = x.rchistogram(regularAxis4);
     assert(h7.counts == result1);
-    
+
     // Same, but use function to calculate N_bin
     auto regularAxis5 = x.transformAxis!(log10, sturges)(10.0 ^^ 2.0, 10.0 ^^ 12.0);
     auto h8 = x.rchistogram(regularAxis5);

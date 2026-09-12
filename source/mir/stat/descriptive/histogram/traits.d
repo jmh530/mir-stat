@@ -93,21 +93,21 @@ template isSwitchable(E)
 }
 
 /++
-Detect whether a type is an `Axis`. An `Axis` type must have `index`, `BinType`, 
+Detect whether a type is an `Axis`. An `Axis` type must have `index`, `BinType`,
 `CountType`, and `N_bin` members.
 
 Params:
     T = type
 Returns:
-    `true if `T` is an `Axis` type, `false` otherwise
+    `true` if `T` is an `Axis` type, `false` otherwise
 +/
 template isAxis(T)
 {
     import std.traits: hasMember;
 
-    static if (hasMember!(T, "index") && 
+    static if (hasMember!(T, "index") &&
                hasMember!(T, "BinType") &&
-               hasMember!(T, "CountType") && 
+               hasMember!(T, "CountType") &&
                hasMember!(T, "N_bin")) {
         enum bool isAxis = true;
     } else {
@@ -137,7 +137,7 @@ Detect whether an axis type has options (and such options must be of type
 Params:
     T = type
 Returns:
-    `true if `T` has an `options` member of type `AxisOptions`, `false` otherwise
+    `true` if `T` has an `options` member of type `AxisOptions`, `false` otherwise
 +/
 template hasAxisOptions(T)
     if (isAxis!T)
@@ -244,7 +244,7 @@ unittest
     static assert(!isEnumAxis!(typeof(transformAxis)));
     static assert(isEnumAxis!(typeof(enumAxis)));
     static assert(!isEnumAxis!(typeof(categoryAxis)));
-    
+
     static assert(!isCategoryAxis!(typeof(integralAxis)));
     static assert(!isCategoryAxis!(typeof(regularAxis)));
     static assert(!isCategoryAxis!(typeof(transformAxis)));
@@ -318,7 +318,7 @@ template isBreakFunction(alias breakFunction)
     import std.traits: isInstanceOf, TemplateOf;
 
     static if (!isInstanceOf!(sturges, breakFunction) &&
-               !isInstanceOf!(scott, breakFunction) && 
+               !isInstanceOf!(scott, breakFunction) &&
                !isInstanceOf!(freedmanDiaconis, breakFunction)) {
         enum bool isBreakFunction = __traits(isSame, breakFunction, sturges) ||
                                     __traits(isSame, breakFunction, scott) ||

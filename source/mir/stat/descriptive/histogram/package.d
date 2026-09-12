@@ -1,5 +1,5 @@
 /++
-This module contains algorithms for create histograms.
+This module contains algorithms for creating histograms.
 
 License: $(HTTP www.apache.org/licenses/LICENSE-2.0, Apache-2.0)
 
@@ -30,7 +30,8 @@ public import mir.stat.descriptive.histogram.api;
 // TODO: Multidimensional histograms
 // - Define joint-bin storage and indexing. The current multiple-axis path records
 //   separate marginal counts for each axis.
-// - Validate storage shape against the axes and support joint flow bins and merging.
+// - Validate joint storage shape against the axes and support joint flow bins
+//   and merging. Marginal count storage already has shape validation.
 //
 // Possible later extensions
 // - Support per-bin accumulators, such as MeanAccumulator.
