@@ -330,6 +330,17 @@ struct Bin(T)
     }
 }
 
+// Keep floating-to-integer conversion out of a caller's zero comparison.
+// DMD 2.113 can crash compiling that expression after inlining. Limiting this
+// barrier to the conversion lets the rest of axis lookup remain inlineable.
+// Revisit the workaround when https://github.com/dlang/dmd/issues/23833 is fixed.
+private CountType floatingBinIndex(CountType, T)(T value)
+{
+    version (DigitalMars)
+        pragma(inline, false);
+    return cast(CountType) value;
+}
+
 /++
 Axis for an interval of integral values with unit steps.
 
@@ -445,7 +456,7 @@ public:
             static if (isIntegral!BinType) {
                 return cast(CountType) (x - _low);
             } else {
-                return cast(CountType) floor(x - _low);
+                return floatingBinIndex!CountType(floor(x - _low));
             }
         } else {
             static if (axisOptions.isCircular) {
@@ -459,7 +470,7 @@ public:
             static if (isIntegral!BinType) {
                 return cast(CountType) (binValue - 1);
             } else {
-                CountType output = cast(CountType) floor(binValue);
+                CountType output = floatingBinIndex!CountType(floor(binValue));
                 // If binValue equals the floor of the binValue, then it is on integer, adjust for closed
                 if (binValue != output) {
                     return output;
@@ -499,6 +510,32 @@ unittest
     assert(integralAxis.bin(0) == Bin!double(2.0, 3.0));
     assert(integralAxis.bin(1) == Bin!double(3.0, 4.0));
     assert(integralAxis.bin(9) == Bin!double(11.0, 12.0));
+}
+
+// Regression: an inlined floating-to-ulong bin index can be compared with zero.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+
+    // Force the caller pattern even in the default test build. Only the
+    // conversion helper needs the DMD workaround; lookup can still be inlined.
+    pragma(inline, true)
+    ulong lookup(T, bool rightClosed)(T value) @safe pure nothrow @nogc
+    {
+        auto axis = IntegralAxis!(ulong, T, AxisOptions(rightClosed))(4, T(-1));
+        return axis.index(value);
+    }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (rightClosed; [false, true])
+    {{
+        assert((lookup!(T, rightClosed)(T(-0.5))) == 0);
+        assert((lookup!(T, rightClosed)(T(0.5))) == 1);
+        assert((lookup!(T, rightClosed)(T(2.5))) == 3);
+        assert((lookup!(T, rightClosed)(T(0))) == (rightClosed ? 0 : 1));
+    }}
 }
 
 // Fractional lower bounds
