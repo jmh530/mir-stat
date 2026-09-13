@@ -43,7 +43,7 @@ See_also:
 template sturges(CountType)
     if(isIntegral!CountType)
 {
-    import mir.primitives: hasShape;
+    import mir.primitives: hasShape, elementCount;
 
     /++
     Params:
@@ -66,7 +66,6 @@ template sturges(CountType)
         assert(n > 0, "sturges: elementCount must be greater than zero");
 
         import mir.math.common: ceil, log2;
-        import mir.primitives: elementCount;
 
         return cast(CountType) (ceil(log2(cast(double) n)) + 1);
     }
@@ -694,4 +693,25 @@ unittest
         T[2] enormous = [0, T.max];
         assertThrown!AssertError(binsFromWidth!ulong(enormous[], T.min_normal));
     }}
+}
+
+// Arrays use the same element-count semantics as slices, with default or
+// explicitly selected count types. No caller-side UFCS import is required.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.ndslice.slice: sliced;
+    double[8] values = [0, 1, 2, 3, 4, 5, 6, 7];
+    auto array = values[];
+    const(double)[] readOnly = array;
+    auto defaultCount = sturges(array);
+    auto explicitCount = sturges!uint(array);
+    static assert(is(typeof(defaultCount) == size_t));
+    static assert(is(typeof(explicitCount) == uint));
+    assert(defaultCount == 4);
+    assert(explicitCount == 4);
+    assert(sturges(readOnly) == 4);
+    assert(sturges!uint(readOnly) == 4);
+    assert(sturges!uint(array.sliced) == explicitCount);
 }
