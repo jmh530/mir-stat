@@ -1862,8 +1862,10 @@ template isTransformFunction(alias T, BinT)
         import std.traits: isSomeFunction;
         static if (isSomeFunction!T) {
             enum bool isTransformFunction = true;
-        } else static if (__traits(isTemplate, T) && isSomeFunction!(T!BinT)) {
-            enum bool isTransformFunction = true;
+        } else static if (__traits(isTemplate, T)) {
+            // Probe the invocation used by the axis, so incompatible template
+            // constraints reject the candidate without a hard error.
+            enum bool isTransformFunction = __traits(compiles, naryFun!T(BinT.init));
         } else static if (is(typeof(T) : string)) {
             static if (__traits(compiles, naryFun!T(cast(BinT) 0.5f))) {
                 enum bool isTransformFunction = true;
@@ -3717,4 +3719,20 @@ unittest
             checkBoundaryMembership(fractional);
         }
     }}
+}
+
+// Rejected template instantiations must produce false, not a hard error while
+// overload resolution considers a candidate with an incompatible bin type.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: log10;
+    static assert(isTransformFunction!(log10, double));
+    static assert(!isTransformFunction!(log10, uint));
+    static assert(!isTransformFunction!(log10, string));
+    template notAFunction(T) { enum notAFunction = 1; }
+    static assert(!isTransformFunction!(notAFunction, double));
+    static assert(isTransformFunction!("a * 2", double));
+    static assert(!isTransformFunction!("a.missingMember", double));
 }

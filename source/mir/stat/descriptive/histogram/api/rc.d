@@ -765,9 +765,7 @@ Params:
     axisOptions = options
 +/
 template rchistogram(CountType, alias Axis, alias transform, alias inverseTransform, AxisOptions axisOptions = AxisOptions())
-    if (__traits(isTemplate, Axis) &&
-        isTransformFunction!(transform, BinType) &&
-        isTransformFunction!(inverseTransform, BinType))
+    if (__traits(isTemplate, Axis))
 {
     import mir.stat.descriptive.histogram.axis: TransformAxis;
 
@@ -784,7 +782,9 @@ template rchistogram(CountType, alias Axis, alias transform, alias inverseTransf
             CountType N_bin,
             BinType low,
             BinType high)
-        if (__traits(isSame, Axis, TransformAxis))
+        if (__traits(isSame, Axis, TransformAxis) &&
+            isTransformFunction!(transform, BinType) &&
+            isTransformFunction!(inverseTransform, BinType))
     {
         import core.lifetime: move;
 
@@ -1442,4 +1442,44 @@ unittest
     assert(c.counts == [1u, 2u]);
     static assert(is(e.CountType == uint));
     static assert(is(c.CountType == uint));
+}
+
+// Infer the bin type while selecting the count type and both transforms.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import mir.math.common: log10;
+    import mir.ndslice.slice: sliced;
+    import mir.stat.descriptive.histogram.axis: TransformAxis, IsRightClosed;
+    import std.meta: AliasSeq;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    static foreach (right; [false, true])
+    {{
+        T[3] values = [10, 100, 1000];
+        auto data = values[].sliced;
+        enum options = AxisOptions(IsRightClosed(right));
+        alias inverse = inverseTransformMapping!log10;
+        auto inferred = rchistogram!(uint, TransformAxis, log10, inverse, options)(
+            data, 2u, T(1), T(10000));
+        auto explicitTypes = rchistogram!(uint, T, TransformAxis, log10, inverse, options)(
+            data, 2u, T(1), T(10000));
+        auto inferredInverse = rchistogram!(uint, TransformAxis, log10, options)(
+            data, 2u, T(1), T(10000));
+        static assert(is(typeof(inferred) == typeof(explicitTypes)));
+        static assert(is(typeof(inferred).CountType == uint));
+        assert(inferred.counts == (right ? [2u, 1u] : [1u, 2u]));
+        auto defaultOptions = rchistogram!(uint, TransformAxis, log10, inverse)(
+            data, 2u, T(1), T(10000));
+        assert(defaultOptions.counts == [1u, 2u]);
+        assert(inferred.counts == explicitTypes.counts);
+        assert(inferred.counts == inferredInverse.counts);
+        static assert(!__traits(compiles,
+            rchistogram!(uint, TransformAxis, 42, inverse, options)(
+                data, 2u, T(1), T(10000))));
+        static assert(!__traits(compiles,
+            rchistogram!(uint, TransformAxis, log10, 42, options)(
+                data, 2u, T(1), T(10000))));
+    }}
 }
