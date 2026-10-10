@@ -308,6 +308,10 @@ unittest
 /++
 Computes the beta log probability density function (LPDF).
 
+When both shapes are at least 16, a centered calculation avoids subtracting
+large, nearly equal logarithms near the peak. Smaller shapes retain the
+direct logarithmic formula and its accuracy limits.
+
 Params:
     x = value to evaluate LPDF
     alpha = shape parameter #1
@@ -327,6 +331,8 @@ T betaLPDF(T)(const T x, const T alpha, const T beta)
     import mir.math.internal.log_beta: logBeta;
     import mir.math.internal.xlogy: xlogy, xlog1py;
 
+    if (alpha >= 16 && beta >= 16 && alpha < T.infinity && beta < T.infinity)
+        return cast(T) betaLargeShapeLPDF(x, alpha, beta);
     return xlogy(alpha - 1, x) + xlog1py(beta - 1, -x) - logBeta(alpha, beta);
 }
 
@@ -340,4 +346,190 @@ unittest
     assert(0.5.betaLPDF(1, 1).approxEqual(log(betaPDF(0.5, 1, 1))));
     assert(0.75.betaLPDF(1, 2).approxEqual(log(betaPDF(0.75, 1, 2))));
     assert(0.25.betaLPDF(0.5, 4).approxEqual(log(betaPDF(0.25, 0.5, 4))));
+}
+
+// Stirling's log-gamma correction, with r=1/z and z>=16. The first omitted
+// term is smaller than 2e-23 at z=16, below double/80-bit real precision.
+private @safe pure nothrow @nogc
+real betaStirlingCorrection(real r)
+{
+    const r2 = r * r;
+    return r * (1.0L / 12 + r2 * (-1.0L / 360 + r2 * (1.0L / 1260
+        + r2 * (-1.0L / 1680 + r2 * (1.0L / 1188 + r2 * (-691.0L / 360360
+        + r2 * (1.0L / 156 + r2 * (-3617.0L / 122400
+        + r2 * (43867.0L / 244188)))))))));
+}
+
+// Recover rounding discarded by a*b. Splitting each operand into two parts
+// also works on DMD, whose std.math.fma need not provide a fused operation.
+// Callers scale the operands into [0,1], so splitting cannot overflow.
+private @safe pure nothrow @nogc
+real betaProductError(real a, real b, real product)
+{
+    enum real splitter = (1UL << ((real.mant_dig + 1) / 2)) + 1.0L;
+    const ca = splitter * a;
+    const ah = ca - (ca - a);
+    const al = a - ah;
+    const cb = splitter * b;
+    const bh = cb - (cb - b);
+    const bl = b - bh;
+    return ((ah * bh - product) + ah * bl + al * bh) + al * bl;
+}
+
+// log(1+z)-z for |z|<=1/2, without subtracting its nearly equal linear term.
+// With t=z/(2+z), log(1+z)=2*(t+t^3/3+t^5/5+...), and 2*t-z=-z*t.
+// Here |t|<=1/3, so the series converges rapidly even at the boundary.
+private @safe pure nothrow @nogc
+real betaLog1pmx(real z)
+{
+    const t = z / (2 + z);
+    const t2 = t * t;
+    real power = t * t2;
+    real sum = 0;
+    foreach (n; 0 .. 100)
+    {
+        const term = power / (3 + 2 * n);
+        const next = sum + term;
+        if (next == sum)
+            break;
+        sum = next;
+        power *= t2;
+    }
+    return -z * t + 2 * sum;
+}
+
+// For large shapes, the usual formula subtracts huge log-gamma terms to
+// recover a comparatively small log-density. Center the calculation at
+// p=a/(a+b) instead: a*log(x/p)+b*log((1-x)/(1-p)), plus normalization.
+// Near p, the two linear terms cancel mathematically. Remove them before
+// evaluation rather than asking floating-point subtraction to cancel them.
+private @safe pure nothrow @nogc
+real betaLargeShapeLPDF(real x, real a, real b)
+{
+    import std.math: log, log1p, fabs, frexp, ldexp;
+
+    if (x == 0 || x == 1)
+        return -real.infinity;
+    // Reflection keeps x<=1/2; its complement can then be compensated below.
+    if (x > 0.5L)
+    {
+        x = 1 - x;
+        const tmp = a;
+        a = b;
+        b = tmp;
+    }
+    const small = a < b ? a : b;
+    const large = a < b ? b : a;
+    const ratio = small / large;
+    const logRatioSum = log1p(ratio);
+
+    // d=a*(1-x)-b*x measures the displacement from p without rounding p
+    // first. That matters when a very narrow peak lies between adjacent
+    // floating-point values. Power-of-two scaling avoids overflow, and the
+    // product residuals preserve the displacement when the products agree.
+    int exponent;
+    frexp(large, exponent);
+    const scaledA = ldexp(a, -exponent);
+    const scaledB = ldexp(b, -exponent);
+    const q = 1 - x;
+    const aq = scaledA * q;
+    const bx = scaledB * x;
+    const d = (aq - bx) + (betaProductError(scaledA, q, aq)
+        - betaProductError(scaledB, x, bx) + scaledA * ((1 - q) - x));
+    const za = -d / scaledA;
+    const zb = d / scaledB;
+    real centered;
+    if (fabs(za) <= 0.5L && fabs(zb) <= 0.5L)
+        centered = a * betaLog1pmx(za) + b * betaLog1pmx(zb);
+    else
+    {
+        // Away from the peak, ordinary logarithms avoid rounding 1+z to
+        // zero in an extreme tail. Cancellation is no longer severe here.
+        const logSmallRatio = log(small) - log(large) - logRatioSum;
+        const logP = a < b ? logSmallRatio : -logRatioSum;
+        const logQ = a < b ? -logRatioSum : logSmallRatio;
+        // Combine before restoring the scale: an individual negative term
+        // can overflow even when the combined log-density is representable.
+        centered = large * ((a / large) * (log(x) - logP)
+            + (b / large) * (log1p(-x) - logQ));
+    }
+    // Stirling normalization, rearranged so a+b is never formed. In
+    // particular, a*b/(a+b) = small/(1+small/large), without a*b overflow.
+    return centered - log(x) - log1p(-x)
+        + 0.5L * (log(small) - logRatioSum)
+        - 0.9189385332046727417803297364056176398614L // log(sqrt(2*pi))
+        - betaStirlingCorrection(1 / a) - betaStirlingCorrection(1 / b)
+        + betaStirlingCorrection((1 / large) / (1 + ratio));
+}
+
+// Large-shape log densities must retain the small result after normalization.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: log, log1p, nextUp, nextDown, isFinite;
+    import mir.math.common: approxEqual;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        // Independent 380-digit mpmath references, including a skewed peak.
+        assert(approxEqual(betaLPDF(T(0.5), T(1000), T(1000)),
+            T(3.574534877131522080143340146965737860325L), 64 * T.epsilon));
+        assert(approxEqual(betaLPDF(T(0.5), T(1e20L), T(1e20L)),
+            T(23.14663316757570206252418299262528928826L), 64 * T.epsilon));
+        const T shape = T(1e20L);
+        // Powers of two preserve the exact 1:3 ratio in every tested type.
+        const T skewShape = T(0x1p64L);
+        assert(approxEqual(betaLPDF(T(0.25), skewShape, 3 * skewShape),
+            T(22.79190664205935824212027792802960787739L), 64 * T.epsilon));
+        assert(approxEqual(betaLPDF(T(0.01), T(1000), T(1e6L)),
+            T(-6740.101350546231158367374280582065411379L), 64 * T.epsilon));
+
+        // At the symmetric peak, log density approaches log(2*sqrt(a/pi)).
+        // This remains finite even when a+a overflows the result type.
+        const T huge = T.max / 2 + T.max / 4;
+        const real peak = log(2.0L) + (log(cast(real) huge)
+            - log(3.141592653589793238462643383279502884197L)) / 2;
+        assert(approxEqual(betaLPDF(T(0.5), huge, huge), cast(T) peak,
+            64 * T.epsilon));
+        assert(betaLPDF(T(0), huge, huge) == -T.infinity);
+        assert(betaLPDF(T(1), huge, huge) == -T.infinity);
+        // A far-tail term may overflow before combining with the other term.
+        const T far = betaLPDF(T(0.75), huge, huge);
+        assert(isFinite(far));
+        const real tailPerShape = log(0.75L);
+        assert(approxEqual(far / huge, cast(T) tailPerShape, 64 * T.epsilon));
+
+        // Check either side of the centered-series and large-shape switches.
+        foreach (a; [nextDown(T(16)), T(16), nextUp(T(16))])
+        foreach (x; [nextDown(T(0.25)), T(0.25), nextUp(T(0.25))])
+        {
+            const real center = betaLPDF(0.5L, cast(real) a, cast(real) a);
+            const real delta = cast(real) x - 0.5L;
+            const T expected = cast(T) (center
+                + (cast(real) a - 1) * log1p(-4 * delta * delta));
+            assert(approxEqual(betaLPDF(x, a, a), expected, 1024 * T.epsilon));
+        }
+        // Adjacent values near a narrow peak exercise compensated products.
+        foreach (x; [nextDown(T(0.5)), nextUp(T(0.5))])
+        {
+            const real delta = cast(real) x - 0.5L;
+            const real expected = betaLPDF(0.5L, cast(real) shape, cast(real) shape)
+                + (cast(real) shape - 1) * log1p(-4 * delta * delta);
+            assert(approxEqual(betaLPDF(x, shape, shape), cast(T) expected,
+                64 * T.epsilon));
+        }
+        // The peak at 1/3 is not representable. These independent references
+        // use the exact stored input, not the mathematical value 1/3.
+        static if (T.mant_dig == 24)
+            enum T offPeak = -844424921743325.2414846717984407322334L;
+        else static if (T.mant_dig == 53)
+            enum T offPeak = 35.03683565001478463916689363816247455347L;
+        else static if (T.mant_dig == 64)
+            enum T offPeak = 35.03976533681629268049036671728932642385L;
+        static if (T.mant_dig == 24 || T.mant_dig == 53 || T.mant_dig == 64)
+            assert(approxEqual(betaLPDF(T(1) / 3, T(0x1p100L), T(0x1p101L)),
+                offPeak, 64 * T.epsilon));
+    }}
 }
