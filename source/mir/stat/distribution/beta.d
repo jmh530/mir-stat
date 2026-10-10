@@ -18,6 +18,11 @@ import mir.internal.utility: isFloatingPoint;
 /++
 Computes the beta probability density function (PDF).
 
+The direct calculation is retained when its intermediate values remain
+finite and normal. Otherwise, a logarithmic fallback avoids losing a
+representable density through intermediate overflow or underflow. Its
+accuracy follows $(LREF betaLPDF), including the limits for smaller shapes.
+
 Params:
     x = value to evaluate PDF
     alpha = shape parameter #1
@@ -34,10 +39,29 @@ T betaPDF(T)(const T x, const T alpha, const T beta)
     in (alpha > 0, "alpha must be greater than zero")
     in (beta > 0, "beta must be greater than zero")
 {
-    import mir.math.common: pow;
+    import mir.math.common: pow, exp;
     import std.mathspecial: betaFunc = beta;
 
-    return pow(x, (alpha - 1)) * pow((1 - x), (beta - 1)) / betaFunc(alpha, beta);
+    // Evaluate endpoint limits directly, including shape=1 where the
+    // density equals the opposite shape even if the beta function underflows.
+    if (x == 0)
+        return alpha < 1 ? T.infinity : alpha > 1 ? T(0) : beta;
+    if (x == 1)
+        return beta < 1 ? T.infinity : beta > 1 ? T(0) : alpha;
+    const T left = pow(x, alpha - 1);
+    const T right = pow(1 - x, beta - 1);
+    const T numerator = left * right;
+    const denominator = betaFunc(alpha, beta);
+    // A normal quotient alone is not enough: a subnormal power or product
+    // may already have lost precision before division restores its scale.
+    if (left >= T.min_normal && right >= T.min_normal
+        && numerator >= T.min_normal && numerator < T.infinity
+        && denominator >= T.min_normal && denominator < T.infinity)
+        return numerator / denominator;
+
+    // Keep the logarithm and exponential in real until the final conversion;
+    // rounding a large-magnitude log density to T can lose relative accuracy.
+    return cast(T) exp(betaLPDF(cast(real) x, cast(real) alpha, cast(real) beta));
 }
 
 ///
@@ -50,6 +74,59 @@ unittest
     assert(0.5.betaPDF(1, 1) == 1);
     assert(0.75.betaPDF(1, 2).approxEqual(0.5));
     assert(0.25.betaPDF(0.5, 4).approxEqual(0.9228516));
+}
+
+// Recover densities lost by the direct powers and beta normalization.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: sqrt, log, nextUp;
+    import mir.math.common: approxEqual;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        // Independent 380-digit beta-density references.
+        assert(approxEqual(betaPDF(T(0.5), T(1000), T(1000)),
+            T(35.67802229170864146047613447641492876937L), 128 * T.epsilon));
+        assert(approxEqual(betaPDF(T(0.5), T(1e20L), T(1e20L)),
+            T(11283791670.95512573894748429162675780971L), 128 * T.epsilon));
+        // For double, the direct numerator and denominator are subnormal.
+        assert(approxEqual(betaPDF(T(0.5), T(530), T(530)),
+            T(25.97111325938743245428429197134466467901L), 128 * T.epsilon));
+        // Both direct intermediates underflow even with 80-bit real, but
+        // their quotient is representable (zero remains correct for float).
+        enum real tail = 6.212155979696773806263160451679998014417e-279L;
+        const T tailTolerance = cast(T) (8 * real.epsilon * (1 - log(tail))
+            + 4 * T.epsilon);
+        assert(approxEqual(betaPDF(T(0.375), T(10000), T(10000)),
+            T(tail), tailTolerance, T(0)));
+        // Symmetric shapes have peak density asymptotic to 2*sqrt(a/pi).
+        const T huge = T.max / 2 + T.max / 4;
+        const T peak = cast(T) (2 * sqrt(cast(real) huge)
+            / sqrt(3.141592653589793238462643383279502884197L));
+        // Exponentiation magnifies log-density rounding. Allow a few ULPs
+        // of the real logarithm, plus the final conversion to T.
+        const T peakTolerance = cast(T) (8 * real.epsilon
+            * (1 + log(cast(real) peak)) + 4 * T.epsilon);
+        assert(approxEqual(betaPDF(T(0.5), huge, huge), peak, peakTolerance));
+        assert(betaPDF(T(0.25), huge, huge) == 0); // genuine result underflow
+        assert(betaPDF(T(0), T(1), T.max) == T.max);
+        assert(betaPDF(T(1), T.max, T(1)) == T.max);
+
+        foreach (a; [T(0.5), T(1), T(2), T(1000)])
+        foreach (b; [T(0.5), T(1), T(2), T(1000)])
+        {
+            assert(betaPDF(T(0), a, b) == (a < 1 ? T.infinity : a > 1 ? T(0) : b));
+            assert(betaPDF(T(1), a, b) == (b < 1 ? T.infinity : b > 1 ? T(0) : a));
+        }
+        // With beta=1 and alpha=2 the exact density is 2*x, even when x
+        // itself is subnormal. Use an absolute allowance for final rounding.
+        const T tiny = nextUp(T(0));
+        assert(approxEqual(betaPDF(tiny, T(2), T(1)), 2 * tiny,
+            128 * T.epsilon, tiny));
+    }}
 }
 
 /++
