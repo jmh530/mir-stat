@@ -457,6 +457,17 @@ unittest
     import std.math: pow, fabs;
     import std.meta: AliasSeq;
 
+    // A representable quantile can already give exactly the requested CDF.
+    // Exercise that early return at the initial midpoint of the search, using
+    // real throughout so conversion of p does not change the target value.
+    const real midpoint = 0.95L + (1 - 0.95L) / 2;
+    const real midpointP = betaCDF(midpoint, 1000.0L, 1.0L);
+    assert(midpointP > 0 && midpointP < 0.5L);
+    assert(betaInvCDF(midpointP, 1000.0L, 1.0L) == midpoint);
+    // Independently check the shape-one identity, rather than relying only
+    // on agreement between the forward and inverse special functions.
+    assert(fabs(pow(midpointP, 1.0L / 1000) - midpoint) < 32 * real.epsilon);
+
     static foreach (T; AliasSeq!(float, double, real))
     {{
         // Allow final T rounding and the error of the underlying real CDF.
