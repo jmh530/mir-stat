@@ -218,8 +218,9 @@ unittest
 // Q(x) = integral(x..c, density) + Q(c). Neither piece is obtained by
 // subtracting a probability close to one. This helper is deliberately bounded
 // to alpha <= 1 and beta <= 128; it is not a replacement incomplete-beta API.
+// A compile-time limit lets tests exercise exhaustion without invalid inputs.
 private @safe pure nothrow @nogc
-real betaSmallInputCCDF(real x, real a, real b)
+real betaSmallInputCCDF(int seriesLimit = 10_000)(real x, real a, real b)
 {
     import std.math: exp, expm1, log, fabs;
     import std.mathspecial: betaIncomplete, gamma;
@@ -258,7 +259,7 @@ real betaSmallInputCCDF(real x, real a, real b)
     real ratioPower = exp(a * logRatio);
     const real ratio = x / c;
     real coefficient = 1;
-    foreach (n; 1 .. 10_000)
+    foreach (n; 1 .. seriesLimit)
     {
         coefficient *= (n - b) * c / n;
         ratioPower *= ratio;
@@ -293,6 +294,21 @@ real betaSmallInputCCDF(real x, real a, real b)
     }
     // Do not silently return an unconverged probability.
     return real.nan;
+}
+
+// Exhaustion must report failure rather than return a partial probability.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.math: isNaN, fabs;
+
+    // For alpha=1, beta=2 the series needs its second (zero) term to
+    // establish convergence. Stop after the first, nonzero term instead.
+    assert(isNaN(betaSmallInputCCDF!2(0.03125L, 1.0L, 2.0L)));
+    const real expected = (1 - 0.03125L) * (1 - 0.03125L);
+    assert(fabs(betaSmallInputCCDF(0.03125L, 1.0L, 2.0L) - expected)
+        < 32 * real.epsilon);
 }
 
 // Recover small-input upper tails without rounding away tiny probabilities.
@@ -383,7 +399,9 @@ T betaInvCDF(T)(const T p, const T alpha, const T beta)
 
 // The caller has established F(.95) < p <= .5. Maintain a bracket around
 // the quantile and compare against p throughout; never form its complement.
-private real betaInverseLowerTail(real p, real a, real b)
+// The default compile-time budget is unchanged when testing early exhaustion.
+private real betaInverseLowerTail(int iterationLimit = 3 * real.mant_dig + 4)
+    (real p, real a, real b)
     @safe pure nothrow @nogc
 {
     import std.mathspecial: betaIncomplete, logGamma;
@@ -395,7 +413,7 @@ private real betaInverseLowerTail(real p, real a, real b)
     const normalizer = logGamma(a + b) - logGamma(a) - logGamma(b);
     // After a bounded number of Newton attempts, use only bisection.
     // This also handles an unusable derivative without changing the target.
-    foreach (iteration; 0 .. 3 * real.mant_dig + 4)
+    foreach (iteration; 0 .. iterationLimit)
     {
         const y = betaIncomplete(a, b, x);
         if (y < p)
@@ -435,6 +453,23 @@ private real betaInverseLowerTail(real p, real a, real b)
         x = next;
     }
     return lower + (upper - lower) / 2;
+}
+
+// An exhausted search returns the midpoint of its updated bracket.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.math: fabs, pow;
+
+    // F(.975)=.975^1000 is below .5, so one iteration raises the lower
+    // bound to the initial midpoint while the upper bound remains one.
+    const real first = 0.95L + (1 - 0.95L) / 2;
+    const real expected = first + (1 - first) / 2;
+    assert(betaInverseLowerTail!1(0.5L, 1000.0L, 1.0L) == expected);
+    // The normal budget still resolves the quantile, not this coarse estimate.
+    assert(fabs(betaInverseLowerTail(0.5L, 1000.0L, 1.0L)
+        - pow(0.5L, 1.0L / 1000)) < 32 * real.epsilon);
 }
 
 ///
