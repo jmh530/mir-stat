@@ -5,6 +5,10 @@ An alternate parameterization of the $(MREF mir,stat,distribution,beta) distribu
 the mean of the distribution and the sum of its shape parameters (also known as the sample
 size of the Beta distribution). 
 
+The shape parameters are computed as $(D mu * kappa) and
+$(D (1 - mu) * kappa). Computing both products directly preserves the
+smaller shape when the mean is close to zero or one.
+
 License: $(HTTP www.apache.org/licenses/LICENSE-2.0, Apache-2.0)
 
 Authors: John Michael Hall
@@ -25,8 +29,8 @@ Computes the beta proportion probability density function (PDF).
 
 Params:
     x = value to evaluate PDF
-    mu = shape parameter #1
-    kappa = shape parameter #2
+    mu = mean, strictly between zero and one
+    kappa = positive sum of the two shape parameters
 
 See_also:
     $(LINK2 https://en.wikipedia.org/wiki/Beta_distribution, Beta Proportion Distribution),
@@ -44,7 +48,7 @@ T betaProportionPDF(T)(const T x, const T mu, const T kappa)
     import mir.stat.distribution.beta: betaPDF;
 
     immutable T alpha = mu * kappa;
-    immutable T beta = kappa - alpha;
+    immutable T beta = (1 - mu) * kappa;
     return betaPDF(x, alpha, beta);
 }
 
@@ -65,8 +69,8 @@ Computes the beta proportion cumulatve distribution function (CDF).
 
 Params:
     x = value to evaluate CDF
-    mu = shape parameter #1
-    kappa = shape parameter #2
+    mu = mean, strictly between zero and one
+    kappa = positive sum of the two shape parameters
 
 See_also:
     $(LINK2 https://en.wikipedia.org/wiki/Beta_distribution, Beta Proportion Distribution),
@@ -84,7 +88,7 @@ T betaProportionCDF(T)(const T x, const T mu, const T kappa)
     import mir.stat.distribution.beta: betaCDF;
 
     immutable T alpha = mu * kappa;
-    immutable T beta = kappa - alpha;
+    immutable T beta = (1 - mu) * kappa;
     return betaCDF(x, alpha, beta);
 }
 
@@ -105,8 +109,8 @@ Computes the beta proportion complementary cumulative distribution function (CCD
 
 Params:
     x = value to evaluate CCDF
-    mu = shape parameter #1
-    kappa = shape parameter #2
+    mu = mean, strictly between zero and one
+    kappa = positive sum of the two shape parameters
 
 See_also:
     $(LINK2 https://en.wikipedia.org/wiki/Beta_distribution, Beta Proportion Distribution),
@@ -124,7 +128,7 @@ T betaProportionCCDF(T)(const T x, const T mu, const T kappa)
     import mir.stat.distribution.beta: betaCCDF;
 
     immutable T alpha = mu * kappa;
-    immutable T beta = kappa - alpha;
+    immutable T beta = (1 - mu) * kappa;
     return betaCCDF(x, alpha, beta);
 }
 
@@ -145,8 +149,8 @@ Computes the beta proportion inverse cumulative distribution function (InvCDF).
 
 Params:
     p = value to evaluate InvCDF
-    mu = shape parameter #1
-    kappa = shape parameter #2
+    mu = mean, strictly between zero and one
+    kappa = positive sum of the two shape parameters
 
 See_also:
     $(LINK2 https://en.wikipedia.org/wiki/Beta_distribution, Beta Proportion Distribution),
@@ -164,7 +168,7 @@ T betaProportionInvCDF(T)(const T p, const T mu, const T kappa)
     import mir.stat.distribution.beta: betaInvCDF;
 
     immutable T alpha = mu * kappa;
-    immutable T beta = kappa - alpha;
+    immutable T beta = (1 - mu) * kappa;
     return betaInvCDF(p, alpha, beta);
 }
 
@@ -185,8 +189,8 @@ Computes the beta proportion log probability density function (LPDF).
 
 Params:
     x = value to evaluate LPDF
-    mu = shape parameter #1
-    kappa = shape parameter #2
+    mu = mean, strictly between zero and one
+    kappa = positive sum of the two shape parameters
 
 See_also:
     $(LINK2 https://en.wikipedia.org/wiki/Beta_distribution, Beta Proportion Distribution),
@@ -204,7 +208,7 @@ T betaProportionLPDF(T)(const T x, const T mu, const T kappa)
     import mir.stat.distribution.beta: betaLPDF;
 
     immutable T alpha = mu * kappa;
-    immutable T beta = kappa - alpha;
+    immutable T beta = (1 - mu) * kappa;
     return betaLPDF(x, alpha, beta);
 }
 
@@ -218,4 +222,44 @@ unittest
     assert(0.5.betaProportionLPDF(0.5, 2).approxEqual(log(betaProportionPDF(0.5, 0.5, 2))));
     assert(0.75.betaProportionLPDF((1.0 / 3), 3).approxEqual(log(betaProportionPDF(0.75, (1.0 / 3), 3))));
     assert(0.25.betaProportionLPDF((1.0 / 9), 4.5).approxEqual(log(betaProportionPDF(0.25, (1.0 / 9), 4.5))));
+}
+
+// A mean close to one must retain the small complementary shape in every API.
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: nextDown, log;
+    import mir.math.common: approxEqual;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        const T mu = nextDown(T(1));
+        const T smallShape = 3 * (1 - mu);
+        // As alpha approaches 3 and beta approaches zero, PDF(1/2) is
+        // beta/2 + O(beta^2), and CDF(1/2) is beta*(log(2)-5/8) + O(beta^2).
+        // The finite-shape corrections here are within the stated tolerance.
+        const T density = smallShape / 2;
+        const T probability = smallShape * (log(T(2)) - T(0.625));
+        assert(approxEqual(betaProportionPDF(T(0.5), mu, T(3)), density,
+            64 * T.epsilon, T(0)));
+        assert(approxEqual(betaProportionLPDF(T(0.5), mu, T(3)), log(density),
+            64 * T.epsilon, T(0)));
+        assert(approxEqual(betaProportionCDF(T(0.5), mu, T(3)), probability,
+            64 * T.epsilon, T(0)));
+        assert(approxEqual(betaProportionInvCDF(probability, mu, T(3)), T(0.5),
+            64 * T.epsilon, T(0)));
+
+        // Near the upper endpoint the CDF is large enough that an incorrect
+        // small shape also causes an observable error in its complement.
+        const T x = nextDown(T(1));
+        const T cdf = smallShape * (-log(1 - x) - x - x * x / 2);
+        assert(approxEqual(betaProportionCCDF(x, mu, T(3)), 1 - cdf,
+            T(0), 2 * T.epsilon));
+
+        // Swapping the mean reflects the density about one half.
+        assert(approxEqual(betaProportionPDF(T(0.5), 1 - mu, T(3)), density,
+            64 * T.epsilon, T(0)));
+    }}
 }
