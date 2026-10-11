@@ -349,6 +349,10 @@ unittest
 /++
 Computes the beta inverse cumulative distribution function (InvCDF).
 
+For lower-half probabilities whose quantiles are near one, a bounded search
+keeps the original probability intact instead of subtracting it from one.
+Its accuracy remains limited by the underlying incomplete beta calculation.
+
 Params:
     p = value to evaluate InvCDF
     alpha = shape parameter #1
@@ -365,9 +369,72 @@ T betaInvCDF(T)(const T p, const T alpha, const T beta)
     in (alpha > 0, "alpha must be greater than zero")
     in (beta > 0, "beta must be greater than zero")
 {
-    import std.mathspecial: betaIncompleteInverse;
+    import std.mathspecial: betaIncompleteInverse, betaIncomplete;
+
+    // Phobos can lose a small p by switching to 1-p when its lower search
+    // bound exceeds .95: https://github.com/dlang/phobos/issues/11103.
+    // For alpha <= beta the median is <= .5, so this cannot affect p <= .5.
+    if (p > 0 && p <= 0.5 && alpha > beta
+        && betaIncomplete(alpha, beta, 0.95L) < p)
+        return cast(T) betaInverseLowerTail(p, alpha, beta);
 
     return betaIncompleteInverse(alpha, beta, p);
+}
+
+// The caller has established F(.95) < p <= .5. Maintain a bracket around
+// the quantile and compare against p throughout; never form its complement.
+private real betaInverseLowerTail(real p, real a, real b)
+    @safe pure nothrow @nogc
+{
+    import std.mathspecial: betaIncomplete, logGamma;
+    import std.math: log, log1p, exp, fabs, isFinite, nextUp, nextDown;
+
+    real lower = 0.95L, upper = 1;
+    real x = lower + (upper - lower) / 2;
+    real previous = upper - lower;
+    const normalizer = logGamma(a + b) - logGamma(a) - logGamma(b);
+    // After a bounded number of Newton attempts, use only bisection.
+    // This also handles an unusable derivative without changing the target.
+    foreach (iteration; 0 .. 3 * real.mant_dig + 4)
+    {
+        const y = betaIncomplete(a, b, x);
+        if (y < p)
+            lower = x;
+        else
+            upper = x;
+        if (y == p)
+            return x;
+
+        real next = lower + (upper - lower) / 2;
+        if (iteration < 2 * real.mant_dig)
+        {
+            const density = exp((a - 1) * log(x) + (b - 1) * log1p(-x)
+                + normalizer);
+            if (density > 0 && isFinite(density))
+            {
+                const step = (y - p) / density;
+                // A tiny estimated step is insufficient if the derivative
+                // is inaccurate. Check that a neighboring value brackets p.
+                if (fabs(step) <= real.epsilon * x)
+                {
+                    const neighbor = y < p ? nextUp(x) : nextDown(x);
+                    const neighborY = betaIncomplete(a, b, neighbor);
+                    if (y < p ? neighborY >= p : neighborY <= p)
+                        return x;
+                }
+                const proposed = x - step;
+                // Reject overshoots and steps that do not shrink promptly.
+                if (proposed > lower && proposed < upper
+                    && fabs(step) < previous / 2)
+                    next = proposed;
+            }
+        }
+        previous = fabs(next - x);
+        if (next == lower || next == upper)
+            return next;
+        x = next;
+    }
+    return lower + (upper - lower) / 2;
 }
 
 ///
@@ -380,6 +447,52 @@ unittest
     assert(0.5.betaInvCDF(1, 1).approxEqual(0.5));
     assert(0.9375.betaInvCDF(1, 2).approxEqual(0.75));
     assert(0.8588867.betaInvCDF(0.5, 4).approxEqual(0.25));
+}
+
+// Preserve small lower-tail probabilities near one (Phobos #11103).
+version(mir_stat_test)
+@safe pure nothrow @nogc
+unittest
+{
+    import std.math: pow, fabs;
+    import std.meta: AliasSeq;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        // Allow final T rounding and the error of the underlying real CDF.
+        const tolerance = 4 * T.epsilon + 32 * real.epsilon;
+        foreach (p; [T(1e-30L), T(1e-20L), T(1e-10L), T(0.1L), T(0.5L)])
+        {
+            const expected = pow(cast(real) p, 1.0L / 1000);
+            assert(fabs(betaInvCDF(p, T(1000), T(1)) - expected) < tolerance);
+        }
+        // Independent 120-decimal-digit mpmath inverse references; these
+        // exercise non-unit shapes as well as the exact power identity.
+        assert(fabs(betaInvCDF(T(1e-20L), T(1000), T(0.5L))
+            - 0.95734473886760864595377827077806545919L) < tolerance);
+        assert(fabs(betaInvCDF(T(1e-20L), T(1000), T(2))
+            - 0.95126906395568540596314010302548721432L) < tolerance);
+        assert(fabs(betaInvCDF(T(1e-30L), T(10000), T(2))
+            - 0.99268854321259998873544195239523927870L) < tolerance);
+
+        // Cross the .95 search boundary using the exact F(x)=x^1000 case.
+        T previous = 0;
+        foreach (x; [0.9499L, 0.95L, 0.9501L])
+        {
+            const p = cast(T) pow(x, 1000.0L);
+            const actual = betaInvCDF(p, T(1000), T(1));
+            assert(actual >= previous);
+            assert(fabs(actual - pow(cast(real) p, 1.0L / 1000)) < tolerance);
+            previous = actual;
+        }
+        assert(betaInvCDF(T(0), T(1000), T(2)) == 0);
+        assert(betaInvCDF(T(1), T(1000), T(2)) == 1);
+        assert(fabs(betaInvCDF(T(0.75L), T(2), T(1))
+            - pow(0.75L, 0.5L)) < tolerance);
+        // Do not force a quantile below one when its true value rounds to one.
+        static if (real.mant_dig < 100)
+            assert(betaInvCDF(T(0.5L), T(1), T(0.01L)) == 1);
+    }}
 }
 
 /++
