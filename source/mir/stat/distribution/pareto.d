@@ -123,6 +123,83 @@ unittest
 }
 
 /++
+Computes the type-I Pareto PDF using guarded extended-precision arithmetic.
+
+Params:
+    T = Represented $(D Fp) type, inferred from the arguments.
+    x = Observation at or above xMin, including positive infinity.
+    xMin = Positive finite lower support boundary.
+    alpha = Positive finite shape parameter.
+
+Returns:
+    The density at x in type T. At xMin it is alpha/xMin. At infinity it is zero.
+    Near rounding midpoints, integral shapes use exact comparisons when the
+    odd density products fit within eight input significand widths.
++/
+@safe pure nothrow @nogc
+T paretoPDF(T)(const T x, const T xMin, const T alpha)
+    if (is(T == Fp!size, size_t size))
+    in (validParameter(xMin), "xMin must be finite and positive")
+    in (validParameter(alpha), "alpha must be finite and positive")
+    in (!x.isNaN && !x.sign && (x.isInfinity || !fpProbabilityLess(x, xMin)), "x must be at least xMin")
+{
+    import mir.stat.internal.fp_pareto: paretoDensity;
+    return paretoDensity(x, xMin, alpha);
+}
+
+///
+version(mir_stat_test)
+@safe pure nothrow @nogc unittest
+{
+    import mir.bignum.fp: Fp;
+    alias T = Fp!64;
+    assert(paretoPDF(T(2), T(1), T(3)) == T(0.1875));
+}
+
+version(mir_stat_test)
+@safe pure nothrow @nogc unittest
+{
+    import mir.bignum.fixed: UInt;
+    import mir.math.common: approxEqual;
+    import std.meta: AliasSeq;
+    static foreach (R; AliasSeq!(float, double, real))
+        assert(approxEqual(paretoPDF(R(1.5), R(1.25), R(0.75)),
+            R(0.43609797474671064824310932395303468578953669162L), 8 * R.epsilon));
+    {
+        alias T = Fp!64;
+        enum expected = T(false, -65, UInt!64.fromHexString("df483bd6c725419b"));
+        assert(paretoPDF(T(1.5), T(1.25), T(0.75)) == expected);
+    }
+    {
+        alias T = Fp!128;
+        enum expected = T(false, -129, UInt!128.fromHexString("df483bd6c725419ae17ecc4045b59416"));
+        assert(paretoPDF(T(1.5), T(1.25), T(0.75)) == expected);
+    }
+    alias T = Fp!64;
+    const least = T(false, long.min, UInt!64(1));
+    assert(paretoPDF(least, least, least) == T(1));
+    assert(paretoPDF(least, least, T(false, long.max - 1, UInt!64.max)).isInfinity);
+    assert(paretoPDF(T(double.infinity), T(1), T(1)) == T(0));
+    // With xMin = 3*x/4 and shape two the density is 9/(8*x), exactly
+    // half the least quantum here. Vary xMin by one represented step.
+    const x = T(false, long.max - 1, UInt!64(9));
+    auto boundary = T(false, long.max - 62, UInt!64(27) << 59);
+    assert(paretoPDF(x, boundary, T(2)) == T(0));
+    boundary.coefficient -= 1;
+    assert(paretoPDF(x, boundary, T(2)) == T(0));
+    boundary.coefficient += 2;
+    assert(paretoPDF(x, boundary, T(2)) == least);
+    // Three half-quanta round up to the even coefficient two.
+    assert(paretoPDF(T(false, long.max - 1, UInt!64(3)),
+        T(false, long.max - 3, UInt!64(9)), T(2)) == T(false, long.min, UInt!64(2)));
+    // At ordinary exponents the exact density is c^2 * 2^-66.
+    // The odd 65-bit square falls halfway above an even coefficient.
+    enum c = 5000000001UL;
+    assert(paretoPDF(T(2), T(false, -32, UInt!64(c)), T(2))
+        == T(false, -65, UInt!64(12500000005000000000UL)));
+}
+
+/++
 Computes the pareto cumulative distribution function (CDF).
 
 Returns the lower-tail probability $(D P(X <= x)).
